@@ -1,5 +1,9 @@
 {
   "devDependencies": {
-    "tsx": "^4.23.11"
+    "tsx": "^4.23.11",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "D": "^1.0.0"
   }
 }
