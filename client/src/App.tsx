@@ -1,112 +1,122 @@
-import { useState } from 'react'
-import './App.css'
+import { useState } from 'react';
+import './App.css';
+
+type SystemStatus = 'idle' | 'loading' | 'online' | 'offline';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [status, setStatus] = useState<SystemStatus>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+  const checkSystem = async () => {
+    setStatus('loading');
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/health`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.status === 'ok') {
+        setStatus('online');
+      } else {
+        setStatus('offline');
+        setErrorMessage('Unable to connect to TokTickIT API');
+      }
+    } catch {
+      setStatus('offline');
+      setErrorMessage('Unable to connect to TokTickIT API');
+    }
+  };
 
   return (
-    <div className="min-vh-100 d-flex flex-column">
-      {/* Navbar */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div className="min-vh-100 bg-light d-flex flex-column">
+      {/* Top Navbar */}
+      <nav className="navbar navbar-dark bg-dark shadow-sm">
         <div className="container">
-          <a className="navbar-brand fw-bold fs-4" href="#">
-            🎵 TokTicKit
-          </a>
-          <button
-            className="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarNav"
-            aria-controls="navbarNav"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-          >
-            <span className="navbar-toggler-icon" />
-          </button>
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav ms-auto">
-              <li className="nav-item">
-                <a className="nav-link active" href="#">Home</a>
-              </li>
-              <li className="nav-item">
-                <a className="nav-link" href="#">About</a>
-              </li>
-            </ul>
-          </div>
+          <span className="navbar-brand mb-0 h1 fw-bold">
+            TokTickIT
+          </span>
         </div>
       </nav>
 
-      {/* Hero */}
-      <main className="flex-grow-1">
-        <section className="bg-dark text-white py-5">
-          <div className="container text-center py-4">
-            <h1 className="display-4 fw-bold mb-3">Welcome to TokTicKit</h1>
-            <p className="lead text-secondary mb-4">
-              Your full-stack app is up and running — React + Vite + Express + Prisma
-            </p>
-            <div className="d-flex gap-3 justify-content-center flex-wrap">
-              <button
-                id="counter-btn"
-                type="button"
-                className="btn btn-primary btn-lg px-4"
-                onClick={() => setCount((c) => c + 1)}
-              >
-                Count: {count}
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline-light btn-lg px-4"
-                onClick={() => setCount(0)}
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </section>
+      {/* Main Content */}
+      <main className="container py-5 flex-grow-1">
+        <div className="row justify-content-center">
+          <div className="col-12 col-md-8 col-lg-6">
+            <div className="card shadow-sm border-0">
+              <div className="card-body p-4 text-center">
+                <h1 className="h3 fw-bold mb-4 text-dark">
+                  TokTickIT IT Service Desk
+                </h1>
 
-        {/* Feature Cards */}
-        <section className="py-5">
-          <div className="container">
-            <h2 className="text-center mb-4 fw-semibold">Stack Overview</h2>
-            <div className="row g-4">
-              {[
-                { icon: '⚛️', title: 'React + Vite', desc: 'Fast frontend with HMR and TypeScript support.' },
-                { icon: '🚀', title: 'Express Server', desc: 'RESTful API backend ready to extend.' },
-                { icon: '🗄️', title: 'Prisma ORM v7', desc: 'Type-safe database access with PostgreSQL.' },
-                { icon: '🐳', title: 'Docker Compose', desc: 'One-command local database setup.' },
-              ].map(({ icon, title, desc }) => (
-                <div key={title} className="col-sm-6 col-lg-3">
-                  <div className="card h-100 shadow-sm border-0">
-                    <div className="card-body text-center p-4">
-                      <div className="fs-1 mb-3">{icon}</div>
-                      <h5 className="card-title fw-semibold">{title}</h5>
-                      <p className="card-text text-muted small">{desc}</p>
+                <div className="d-grid gap-2 mb-4">
+                  <button
+                    id="check-system-btn"
+                    type="button"
+                    className="btn btn-primary btn-lg shadow-sm"
+                    onClick={checkSystem}
+                    disabled={status === 'loading'}
+                  >
+                    {status === 'loading' ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm me-2"
+                          role="status"
+                          aria-hidden="true"
+                        />
+                        Checking system...
+                      </>
+                    ) : (
+                      'Check System'
+                    )}
+                  </button>
+                </div>
+
+                {/* Status Result Area */}
+                {status === 'loading' && (
+                  <div className="alert alert-info d-flex align-items-center justify-content-center gap-2 mb-0" role="status">
+                    <span>⏳</span>
+                    <span>Loading...</span>
+                  </div>
+                )}
+
+                {status === 'online' && (
+                  <div className="card bg-light border-0 p-3 text-start">
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <span className="fw-semibold">System Status:</span>
+                      <span className="badge bg-success fs-6">Online</span>
                     </div>
                   </div>
-                </div>
-              ))}
+                )}
+
+                {status === 'offline' && (
+                  <div className="card bg-light border-0 p-3 text-start">
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <span className="fw-semibold">System Status:</span>
+                      <span className="badge bg-danger fs-6">Offline</span>
+                    </div>
+                    {errorMessage && (
+                      <div className="text-danger small mt-1">
+                        {errorMessage}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </section>
-
-        {/* Alert banner */}
-        <section className="container mb-5">
-          <div className="alert alert-info d-flex align-items-center gap-2" role="alert">
-            <span>ℹ️</span>
-            <span>
-              Edit <code>client/src/App.tsx</code> to start building your app.
-              Database models go in <code>prisma/schema.prisma</code>.
-            </span>
-          </div>
-        </section>
+        </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-dark text-secondary text-center py-3 small">
-        TokTicKit &copy; {new Date().getFullYear()} — Built with React, Express &amp; Prisma
+      <footer className="bg-white border-top py-3 text-center text-muted small">
+        TokTickIT &copy; {new Date().getFullYear()} — IT Service Desk
       </footer>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
