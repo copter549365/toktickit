@@ -3,8 +3,14 @@ import './App.css';
 
 type SystemStatus = 'idle' | 'loading' | 'online' | 'offline';
 
+interface Category {
+  id: number;
+  name: string;
+}
+
 function App() {
   const [status, setStatus] = useState<SystemStatus>('idle');
+  const [categories, setCategories] = useState<Category[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -12,15 +18,24 @@ function App() {
   const checkSystem = async () => {
     setStatus('loading');
     setErrorMessage(null);
+    setCategories([]);
 
     try {
-      const response = await fetch(`${API_URL}/api/health`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const [healthResponse, categoriesResponse] = await Promise.all([
+        fetch(`${API_URL}/api/health`),
+        fetch(`${API_URL}/api/categories`),
+      ]);
+
+      if (!healthResponse.ok || !categoriesResponse.ok) {
+        throw new Error('API request failed');
       }
-      const data = await response.json();
-      if (data.status === 'ok') {
+
+      const healthData = await healthResponse.json();
+      const categoriesData = await categoriesResponse.json();
+
+      if (healthData.status === 'ok' && Array.isArray(categoriesData)) {
         setStatus('online');
+        setCategories(categoriesData);
       } else {
         setStatus('offline');
         setErrorMessage('Unable to connect to TokTickIT API');
@@ -85,9 +100,24 @@ function App() {
 
                 {status === 'online' && (
                   <div className="card bg-light border-0 p-3 text-start">
-                    <div className="d-flex align-items-center gap-2 mb-2">
+                    <div className="d-flex align-items-center gap-2 mb-3">
                       <span className="fw-semibold">System Status:</span>
                       <span className="badge bg-success fs-6">Online</span>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-top">
+                      <h6 className="fw-bold text-dark mb-2">Supported Request Categories:</h6>
+                      {categories.length > 0 ? (
+                        <ol className="mb-0 ps-3">
+                          {categories.map((category) => (
+                            <li key={category.id} className="py-1">
+                              {category.name}
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="text-muted mb-0 small">No categories found.</p>
+                      )}
                     </div>
                   </div>
                 )}
