@@ -11,7 +11,7 @@
 | 4 | Create and Seed Categories (Issue 3) | ทำissue 3 ให้ได้ตามrequiment | AI ทำการเพิ่ม Category model บน Prisma schema, สร้าง migration `init_category`, เขียน seed script แบบ idempotent ด้วย `upsert` ครบทั้ง 4 หมวดหมู่ และทดสอบรันซ้ำเพื่อยืนยันว่าไม่มี duplicate |
 | 5 | Display Category List (Issue 4) | ต่อ issue 4 เลย | AI นำความต้องการจาก Lab Sheet สร้าง endpoint `GET /api/categories` โดยดึงข้อมูลจาก PostgreSQL ผ่าน Prisma Client v7 (จัดเรียงตาม id จากน้อยไปมาก), เขียน Supertest `api-02-categories.test.ts`, อัปเดต React UI ให้เรียก API ทั้งคู่และแสดงผลรายการ Supported Request Categories แบบไดนามิก พร้อมเขียน Vitest UI tests (`UI-01`, `UI-02`, `UI-03`) ผ่านครบ 100% |
 | 6 | Debug Database Connection & Test Failures | แก้Error | AI วิเคราะห์ stack trace จาก Vitest และพบว่าเกิด `ECONNREFUSED` เพราะ PostgreSQL Docker container ยังไม่ได้เปิดทำงาน และข้อมูล Category ยังไม่ได้ seed AI จึงช่วยสั่งรัน `docker compose up -d`, `npx prisma migrate dev`, และ `npx tsx prisma/seed.ts` จน tests ทั้งฝั่ง Server และ Client ผ่านครบทั้งหมด |
-| 7 | Git Workflow & Branch Synchronization | ต้องทำไงต่อนะ เพื่อpushขึ้นไปใหม่ / แก้ไข fatal: pathspec did not match | AI ช่วย pull อัปเดตล่าสุดจาก GitHub (`feature/4-category-list`) มารวมกับโค้ด local และช่วยแนะนำคำสั่งในการ resolve path ของ Git ขณะรันจากโฟลเดอร์ `server` ไปยัง root |
+| 7 | Git Workflow & Branch Synchronization | push error  / แก้ไข fatal: pathspec did not match | AI ช่วย pull อัปเดตล่าสุดจาก GitHub (`feature/4-category-list`) มารวมกับโค้ด local และช่วยแนะนำคำสั่งในการ resolve path ของ Git ขณะรันจากโฟลเดอร์ `server` ไปยัง root |
 
 ---
 
