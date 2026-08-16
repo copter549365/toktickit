@@ -72,6 +72,11 @@ toktickit/
 ├── client/               ← React + Vite + Bootstrap frontend
 └── server/               ← Express + TypeScript backend
 ```
+## Tests
+```
+cd server && npm test
+cd client && npm test
+```
 
 ## Tech Stack
 
