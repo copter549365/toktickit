@@ -57,10 +57,10 @@ file path, per the required repository structure.
 | API-26 | API | — (BR-23) | `DELETE /api/attachments/:id` missing `removalReason` | 400 `REMOVAL_REASON_REQUIRED` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-27 | API | — (BR-23) | `DELETE /api/attachments/:id` already removed | 409 `ATTACHMENT_ALREADY_REMOVED` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-28 | API | AC-25 | `DELETE /api/attachments/:id` on another Requester's attachment | 404 `TICKET_NOT_FOUND`-equivalent for attachments | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-29 | API | — | `GET /api/requesters` returns only active Requesters | Seeded inactive Requester absent from response | `server/tests/lab-02/requesters.api.test.ts` | Planned |
+| API-29 | API | — | `GET /api/requesters` returns only active Requesters | Seeded inactive Requester absent from response | `server/tests/lab-02/requesters.api.test.ts` | Pass |
 | API-30 | API | — | `GET /api/related-systems` returns only active rows | Matches seed | `server/tests/lab-02/related-systems.api.test.ts` | Planned |
 | DB-01 | DB | — | Idempotent seed for RequesterUser/RelatedSystem/Category/Ticket-adjacent lookups | Running seed twice creates no duplicate rows | `server/tests/lab-02/seed.test.ts` | Planned |
-| UI-01 | UI | AC-02, AC-29, AC-30 | Requester Selection screen: loading, loaded, empty, and API-failure states | Correct state renders for each mocked fetch outcome | `client/tests/lab-02/RequesterSelection.test.tsx` | Planned |
+| UI-01 | UI | AC-02, AC-29, AC-30 | Requester Selection screen: loading, loaded, empty, and API-failure states | Correct state renders for each mocked fetch outcome | `client/tests/lab-02/RequesterSelection.test.tsx` | Pass |
 | UI-02 | UI | AC-04, AC-05 | Create Ticket blocks submit and shows field errors for blank Summary / short Description | Field-level message shown; `fetch` not called | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-03 | UI | AC-06, AC-07 | Create Ticket attachment picker rejects oversized/wrong-type files client-side | Inline per-file error; file not added to pending list | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-04 | UI | AC-10 | Submit button shows busy state and is disabled while POST is in flight | Second click during flight does not trigger a second request | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
@@ -142,8 +142,11 @@ npx playwright test e2e/lab-02
 
 ## 6. Final Results
 
-Not yet run — implementation has not started (Issue 1 is documentation-only). This section is updated as
-Issues 2–7 land, with the final consolidated pass/fail output filled in before the Issue 7 release PR.
+Not yet run in full — implementation is in progress. This section is updated as Issues 2–7 land, with the
+final consolidated pass/fail output filled in before the Issue 7 release PR.
+
+- **Issue 3** (Development Requester Selection & Context Management): API-29 and UI-01 pass — see rows above.
+  `GET /api/related-systems` (API-30) is deferred to Issue 4, which is the first issue that consumes it.
 
 ## 7. Known Limitations or Deferred Tests
 

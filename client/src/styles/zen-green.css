@@ -187,3 +187,55 @@ body {
   border-radius: 4px;
   padding: calc(var(--zg-space-unit) * 1.5) calc(var(--zg-space-unit) * 2);
 }
+
+/* ---- Selection screen (ui-spec.md §4.2) ---- */
+
+.zg-selection-card {
+  width: 100%;
+  max-width: 480px;
+}
+
+/* ---- Application shell (ui-spec.md §4.1) ---- */
+
+.zg-shell-header {
+  background: var(--color-primary);
+}
+
+.zg-shell-brand {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.zg-shell-nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  padding: 8px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.zg-shell-nav-link:hover {
+  color: #ffffff;
+}
+
+.zg-shell-nav-link.active {
+  background: var(--color-secondary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.zg-shell-main {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: calc(var(--zg-space-unit) * 3) calc(var(--zg-space-unit) * 2);
+}
+
+/* Secondary buttons need light-on-dark contrast inside the green header, not the card-context styling. */
+.zg-shell-header .btn-zg-secondary {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+.zg-shell-header .btn-zg-secondary:hover,
+.zg-shell-header .btn-zg-secondary:focus {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
