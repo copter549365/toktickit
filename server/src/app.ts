@@ -32,4 +32,23 @@ app.get('/api/categories', async (_req, res) => {
   }
 });
 
+// Active Development Requesters Endpoint (api-spec.md §1 "GET /api/requesters")
+app.get('/api/requesters', async (_req, res) => {
+  try {
+    const requesters = await prisma.requesterUser.findMany({
+      where: { isActive: true },
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
+    res.status(200).json(requesters);
+  } catch (error) {
+    console.error('Error fetching requesters:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
 export default app;
