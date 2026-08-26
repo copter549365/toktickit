@@ -26,15 +26,15 @@ file path, per the required repository structure.
 
 | Test ID | Type | AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | AC-01 | Ticket Number generator produces `TKT-{yyyy}-{6 digits}` and increments per year | Format matches regex; sequential calls increment | `server/tests/lab-02/ticket-number.unit.test.ts` | Planned |
-| UNIT-02 | Unit | AC-04, AC-05 | Summary/Description validators enforce length + trimming rules (BR-11, BR-12) | Reject out-of-range/blank; accept boundary values (5, 120, 10, 2000 chars) | `server/tests/lab-02/validation.unit.test.ts` | Planned |
+| UNIT-01 | Unit | AC-01 | Ticket Number generator produces `TKT-{yyyy}-{6 digits}` and increments per year | Format matches regex; sequential calls increment | `server/tests/lab-02/ticket-number.unit.test.ts` | Pass |
+| UNIT-02 | Unit | AC-04, AC-05 | Summary/Description validators enforce length + trimming rules (BR-11, BR-12) | Reject out-of-range/blank; accept boundary values (5, 120, 10, 2000 chars) | `server/tests/lab-02/validation.unit.test.ts` | Pass |
 | UNIT-03 | Unit | AC-17 | Ticket-list query normalizer applies default/fallback for invalid `sortBy`, `sortOrder`, `page`, `pageSize` | Invalid values fall back to documented defaults, never throw | `server/tests/lab-02/ticket-query.unit.test.ts` | Planned |
-| API-01 | API | AC-01 | `POST /api/tickets` with valid body | 201; ticket persisted with `NEW` status and unique Ticket Number | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-02 | API | AC-04 | `POST /api/tickets` missing Summary | 400 with `fieldErrors.summary`; no row persisted | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-03 | API | AC-05 | `POST /api/tickets` Description too short | 400 with `fieldErrors.description`; no row persisted | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-04 | API | — (BR-13) | `POST /api/tickets` with unknown `categoryId` | 400 `INVALID_REFERENCE` | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-05 | API | — (§0) | `POST /api/tickets` missing `x-requester-id` | 400 `MISSING_REQUESTER_CONTEXT` | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-06 | API | — (BR-04, §0) | `POST /api/tickets` with an inactive Requester's id | 401 `INVALID_REQUESTER_CONTEXT` | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
+| API-01 | API | AC-01 | `POST /api/tickets` with valid body | 201; ticket persisted with `NEW` status and unique Ticket Number | `server/tests/lab-02/create-ticket.api.test.ts` | Pass |
+| API-02 | API | AC-04 | `POST /api/tickets` missing Summary | 400 with `fieldErrors.summary`; no row persisted | `server/tests/lab-02/create-ticket.api.test.ts` | Pass |
+| API-03 | API | AC-05 | `POST /api/tickets` Description too short | 400 with `fieldErrors.description`; no row persisted | `server/tests/lab-02/create-ticket.api.test.ts` | Pass |
+| API-04 | API | — (BR-13) | `POST /api/tickets` with unknown `categoryId` | 400 `INVALID_REFERENCE` | `server/tests/lab-02/create-ticket.api.test.ts` | Pass |
+| API-05 | API | — (§0) | `POST /api/tickets` missing `x-requester-id` | 400 `MISSING_REQUESTER_CONTEXT` | `server/tests/lab-02/create-ticket.api.test.ts` | Pass |
+| API-06 | API | — (BR-04, §0) | `POST /api/tickets` with an inactive Requester's id | 401 `INVALID_REQUESTER_CONTEXT` | `server/tests/lab-02/create-ticket.api.test.ts` | Pass |
 | API-07 | API | AC-11 | `GET /api/tickets` for Requester A only returns A's tickets, even when B has tickets too | Response contains only A's rows | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-08 | API | AC-13 | `GET /api/tickets?search=` matches ticket number/summary | Only matching, owned tickets returned | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-09 | API | AC-14 | `GET /api/tickets?search=` with no matches | `data: []`, `meta.totalCount: 0` | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
@@ -45,11 +45,11 @@ file path, per the required repository structure.
 | API-14 | API | AC-20 | `GET /api/tickets/:id` for an owned ticket | 200 with full read-only field set | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
 | API-15 | API | AC-03 | `GET /api/tickets/:id` for a ticket owned by another Requester | 404 `TICKET_NOT_FOUND` (no leak) | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
 | API-16 | API | — | `GET /api/tickets/:id` for a nonexistent id | 404 `TICKET_NOT_FOUND`, identical shape to API-15 | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
-| API-17 | API | AC-22 | `POST /api/tickets/:id/attachments` valid JPG under 5 MB, owned ticket, <5 active | 201; attachment `isRemoved:false` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-18 | API | AC-07 | `POST /api/tickets/:id/attachments` with a `.exe` file | 415 `UNSUPPORTED_FILE_TYPE`; not persisted | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-19 | API | AC-06 | `POST /api/tickets/:id/attachments` with a 6 MB file | 413 `FILE_TOO_LARGE`; not persisted | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-20 | API | AC-08 | `POST /api/tickets/:id/attachments` on a ticket with 5 active attachments already | 409 `ATTACHMENT_LIMIT_REACHED`; count stays 5 | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-21 | API | AC-25 | `POST /api/tickets/:id/attachments` where `:id` belongs to another Requester | 404 `TICKET_NOT_FOUND` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
+| API-17 | API | AC-22 | `POST /api/tickets/:id/attachments` valid JPG under 5 MB, owned ticket, <5 active | 201; attachment `isRemoved:false` | `server/tests/lab-02/attachments.api.test.ts` | Pass |
+| API-18 | API | AC-07 | `POST /api/tickets/:id/attachments` with a `.exe` file | 415 `UNSUPPORTED_FILE_TYPE`; not persisted | `server/tests/lab-02/attachments.api.test.ts` | Pass |
+| API-19 | API | AC-06 | `POST /api/tickets/:id/attachments` with a 6 MB file | 413 `FILE_TOO_LARGE`; not persisted | `server/tests/lab-02/attachments.api.test.ts` | Pass |
+| API-20 | API | AC-08 | `POST /api/tickets/:id/attachments` on a ticket with 5 active attachments already | 409 `ATTACHMENT_LIMIT_REACHED`; count stays 5 | `server/tests/lab-02/attachments.api.test.ts` | Pass |
+| API-21 | API | AC-25 | `POST /api/tickets/:id/attachments` where `:id` belongs to another Requester | 404 `TICKET_NOT_FOUND` | `server/tests/lab-02/attachments.api.test.ts` | Pass |
 | API-22 | API | AC-21 | `GET /api/attachments/:id/download` for an active, owned attachment | 200, correct `Content-Type`/`Content-Disposition`, bytes match uploaded file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-23 | API | AC-24 | `GET /api/attachments/:id/download` for a soft-removed attachment | 404 `ATTACHMENT_NOT_FOUND`; no bytes returned | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-24 | API | AC-25 | `GET /api/attachments/:id/download` for an attachment on another Requester's ticket | 404 `ATTACHMENT_NOT_FOUND` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
@@ -58,14 +58,14 @@ file path, per the required repository structure.
 | API-27 | API | — (BR-23) | `DELETE /api/attachments/:id` already removed | 409 `ATTACHMENT_ALREADY_REMOVED` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-28 | API | AC-25 | `DELETE /api/attachments/:id` on another Requester's attachment | 404 `TICKET_NOT_FOUND`-equivalent for attachments | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-29 | API | — | `GET /api/requesters` returns only active Requesters | Seeded inactive Requester absent from response | `server/tests/lab-02/requesters.api.test.ts` | Pass |
-| API-30 | API | — | `GET /api/related-systems` returns only active rows | Matches seed | `server/tests/lab-02/related-systems.api.test.ts` | Planned |
-| DB-01 | DB | — | Idempotent seed for RequesterUser/RelatedSystem/Category/Ticket-adjacent lookups | Running seed twice creates no duplicate rows | `server/tests/lab-02/seed.test.ts` | Planned |
+| API-30 | API | — | `GET /api/related-systems` returns only active rows | Matches seed | `server/tests/lab-02/related-systems.api.test.ts` | Pass |
+| DB-01 | DB | — | Idempotent seed for RequesterUser/RelatedSystem/Category/Ticket-adjacent lookups | Running seed twice creates no duplicate rows | `server/tests/lab-02/seed.test.ts` | Pass |
 | UI-01 | UI | AC-02, AC-29, AC-30 | Requester Selection screen: loading, loaded, empty, and API-failure states | Correct state renders for each mocked fetch outcome | `client/tests/lab-02/RequesterSelection.test.tsx` | Pass |
-| UI-02 | UI | AC-04, AC-05 | Create Ticket blocks submit and shows field errors for blank Summary / short Description | Field-level message shown; `fetch` not called | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-03 | UI | AC-06, AC-07 | Create Ticket attachment picker rejects oversized/wrong-type files client-side | Inline per-file error; file not added to pending list | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-04 | UI | AC-10 | Submit button shows busy state and is disabled while POST is in flight | Second click during flight does not trigger a second request | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-05 | UI | AC-01 | Successful submission displays the backend-returned Ticket Number | Success panel shows exact returned value | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-06 | UI | AC-09 | Create Ticket on API failure preserves entered field values | Form retains previously typed Summary/Description after error | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
+| UI-02 | UI | AC-04, AC-05 | Create Ticket blocks submit and shows field errors for blank Summary / short Description | Field-level message shown; `fetch` not called | `client/tests/lab-02/CreateTicket.test.tsx` | Pass |
+| UI-03 | UI | AC-06, AC-07 | Create Ticket attachment picker rejects oversized/wrong-type files client-side | Inline per-file error; file not added to pending list | `client/tests/lab-02/CreateTicket.test.tsx` | Pass |
+| UI-04 | UI | AC-10 | Submit button shows busy state and is disabled while POST is in flight | Second click during flight does not trigger a second request | `client/tests/lab-02/CreateTicket.test.tsx` | Pass |
+| UI-05 | UI | AC-01 | Successful submission displays the backend-returned Ticket Number | Success panel shows exact returned value | `client/tests/lab-02/CreateTicket.test.tsx` | Pass |
+| UI-06 | UI | AC-09 | Create Ticket on API failure preserves entered field values | Form retains previously typed Summary/Description after error | `client/tests/lab-02/CreateTicket.test.tsx` | Pass |
 | UI-07 | UI | AC-15, AC-14 | My Tickets renders Empty state vs. No-results state distinctly | Correct copy/CTA for each mocked response | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-08 | UI | AC-12 | My Tickets re-fetches when the acting Requester context changes | New fetch fired with new `x-requester-id`; old rows cleared before new render | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-09 | UI | AC-17, AC-18 | My Tickets pagination and sort controls update query params and re-render | Clicking next page / column header issues expected fetch call | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
@@ -74,8 +74,8 @@ file path, per the required repository structure.
 | UI-12 | UI | AC-22 | Attachment section: add a valid file to a ticket with <5 active attachments | New attachment appears active immediately after success response | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
 | UI-13 | UI | AC-23 | Attachment section: soft-remove flow requires a reason before confirming | Confirm disabled until reason entered; DELETE called with reason on confirm | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
 | UI-14 | UI | AC-24 | Attachment section: removed attachment shows disabled download with explanation | Download control disabled, tooltip/message present | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
-| UI-15 | UI | — (ui-spec §3) | Badge components render correct color+text for each Priority/Status value | Snapshot/class assertions match `ui-spec.md` §3 table | `client/tests/lab-02/Badges.test.tsx` | Planned |
-| STYLE-01 | UI Style | AC-28, ui-spec §7 | Required-field asterisk + `role="alert"` validation message present on invalid fields | Assertions on DOM attributes/classes across Create Ticket fields | `client/tests/lab-02/FormAccessibility.test.tsx` | Planned |
+| UI-15 | UI | — (ui-spec §3) | Badge components render correct color+text for each Priority/Status value | Snapshot/class assertions match `ui-spec.md` §3 table | `client/tests/lab-02/Badges.test.tsx` | Pass |
+| STYLE-01 | UI Style | AC-28, ui-spec §7 | Required-field asterisk + `role="alert"` validation message present on invalid fields | Assertions on DOM attributes/classes across Create Ticket fields | `client/tests/lab-02/FormAccessibility.test.tsx` | Pass |
 | RESP-01 | Responsive | AC-26 | My Tickets at <768px renders stacked cards, no horizontal scroll | Playwright viewport screenshot + `scrollWidth` check | `e2e/lab-02/responsive-my-tickets.spec.ts` | Planned |
 | RESP-02 | Responsive | AC-27 | Create Ticket at 768–991px keeps Summary/Description full width, no clipped labels | Playwright viewport screenshot + layout assertions | `e2e/lab-02/responsive-create-ticket.spec.ts` | Planned |
 | RESP-03 | Responsive | ui-spec §6 | Ticket Detail at all three breakpoints matches `ui-spec.md` visual checklist | Screenshots saved to `artifacts/lab-02/screenshots/ticket-detail/` | `e2e/lab-02/responsive-ticket-detail.spec.ts` | Planned |
@@ -145,8 +145,8 @@ npx playwright test e2e/lab-02
 Not yet run in full — implementation is in progress. This section is updated as Issues 2–7 land, with the
 final consolidated pass/fail output filled in before the Issue 7 release PR.
 
-- **Issue 3** (Development Requester Selection & Context Management): API-29 and UI-01 pass — see rows above.
-  `GET /api/related-systems` (API-30) is deferred to Issue 4, which is the first issue that consumes it.
+- **Issue 3** (Development Requester Selection & Context Management): API-29 and UI-01 pass.
+- **Issue 4** (Create Ticket Flow & Initial Attachment Upload): UNIT-01, UNIT-02, API-01..API-06, API-17..API-21, API-30, DB-01, UI-02..UI-06, UI-15, and STYLE-01 pass. Full ticket creation lifecycle with validation, requester scoping, sequential ticket number generation, and attachment uploading is tested and verified.
 
 ## 7. Known Limitations or Deferred Tests
 
