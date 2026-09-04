@@ -6,6 +6,7 @@ import fs from 'fs';
 import { prisma } from './db.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
 import { validateTicketInputFields } from './utils/validation.js';
+import { normalizeTicketListQuery } from './utils/ticketQuery.js';
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
   ensureUploadsDirectory,
@@ -192,6 +193,71 @@ app.post('/api/tickets', verifyRequesterContext, async (req, res) => {
     res.status(201).json(ticket);
   } catch (error) {
     console.error('Error creating ticket:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
+// My Tickets List Endpoint (api-spec.md §2 "GET /api/tickets")
+app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
+  try {
+    const requester = (req as any).requester;
+    const { search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, pageSize } =
+      normalizeTicketListQuery(req.query as Record<string, unknown>);
+
+    const where: any = { requesterId: requester.id };
+
+    if (search) {
+      where.OR = [
+        { ticketNumber: { contains: search, mode: 'insensitive' } },
+        { summary: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (categoryId !== undefined) {
+      where.categoryId = categoryId;
+    }
+
+    if (requestedPriority) {
+      where.requestedPriority = requestedPriority;
+    }
+
+    if (currentStatus) {
+      where.currentStatus = currentStatus;
+    }
+
+    const [tickets, totalCount] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { category: { select: { name: true } } },
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+
+    res.status(200).json({
+      data: tickets.map((t) => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        summary: t.summary,
+        categoryId: t.categoryId,
+        categoryName: t.category.name,
+        requestedPriority: t.requestedPriority,
+        itPriority: t.itPriority,
+        currentStatus: t.currentStatus,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      })),
+      meta: {
+        page,
+        pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+      },
+    });
+  } catch (error) {
+    console.error('Error listing tickets:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
 });

@@ -1,5 +1,5 @@
 import { API_URL } from './config';
-import type { Ticket, CreateTicketInput } from '../types/ticket';
+import type { Ticket, CreateTicketInput, TicketListParams, TicketListResponse } from '../types/ticket';
 import type { Attachment } from '../types/attachment';
 
 export interface ApiErrorResponse {
@@ -31,6 +31,39 @@ export async function createTicket(
       'x-requester-id': String(requesterId),
     },
     body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    let errorData: ApiErrorResponse;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = { error: 'INTERNAL_ERROR' };
+    }
+    throw new ApiError(response.status, errorData);
+  }
+
+  return response.json();
+}
+
+export async function fetchMyTickets(
+  requesterId: number,
+  params: TicketListParams = {},
+): Promise<TicketListResponse> {
+  const query = new URLSearchParams();
+  if (params.search) query.set('search', params.search);
+  if (params.categoryId) query.set('categoryId', String(params.categoryId));
+  if (params.requestedPriority) query.set('requestedPriority', params.requestedPriority);
+  if (params.currentStatus) query.set('currentStatus', params.currentStatus);
+  if (params.sortBy) query.set('sortBy', params.sortBy);
+  if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+
+  const response = await fetch(`${API_URL}/api/tickets?${query.toString()}`, {
+    headers: {
+      'x-requester-id': String(requesterId),
+    },
   });
 
   if (!response.ok) {

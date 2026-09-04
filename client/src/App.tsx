@@ -4,6 +4,7 @@ import { RequireRequester } from './components/RequireRequester';
 import { AppShell } from './components/AppShell';
 import { RequesterSelection } from './screens/RequesterSelection';
 import { CreateTicket } from './screens/CreateTicket';
+import { MyTickets } from './screens/MyTickets';
 import { ComingSoon } from './pages/ComingSoon';
 
 function App() {
@@ -15,10 +16,7 @@ function App() {
           <Route element={<RequireRequester />}>
             <Route element={<AppShell />}>
               <Route index element={<Navigate to="/tickets" replace />} />
-              <Route
-                path="tickets"
-                element={<ComingSoon title="My Tickets" issue="Issue 5" />}
-              />
+              <Route path="tickets" element={<MyTickets />} />
               <Route path="tickets/new" element={<CreateTicket />} />
               <Route
                 path="tickets/:id"

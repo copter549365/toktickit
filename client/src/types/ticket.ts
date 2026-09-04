@@ -33,3 +33,43 @@ export interface CreateTicketInput {
   description: string;
   requestedPriority: Priority;
 }
+
+export interface TicketListItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  categoryId: number;
+  categoryName: string;
+  requestedPriority: Priority;
+  itPriority: Priority | null;
+  currentStatus: TicketStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TicketSortField = 'createdAt' | 'ticketNumber' | 'summary';
+export type SortOrder = 'asc' | 'desc';
+export type PageSize = 10 | 20 | 50;
+
+export interface TicketListParams {
+  search?: string;
+  categoryId?: number;
+  requestedPriority?: Priority;
+  currentStatus?: TicketStatus;
+  sortBy?: TicketSortField;
+  sortOrder?: SortOrder;
+  page?: number;
+  pageSize?: PageSize;
+}
+
+export interface TicketListMeta {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export interface TicketListResponse {
+  data: TicketListItem[];
+  meta: TicketListMeta;
+}
