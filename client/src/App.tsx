@@ -3,6 +3,7 @@ import { RequesterProvider } from './context/RequesterContext';
 import { RequireRequester } from './components/RequireRequester';
 import { AppShell } from './components/AppShell';
 import { RequesterSelection } from './screens/RequesterSelection';
+import { CreateTicket } from './screens/CreateTicket';
 import { ComingSoon } from './pages/ComingSoon';
 
 function App() {
@@ -18,10 +19,7 @@ function App() {
                 path="tickets"
                 element={<ComingSoon title="My Tickets" issue="Issue 5" />}
               />
-              <Route
-                path="tickets/new"
-                element={<ComingSoon title="Create Ticket" issue="Issue 4" />}
-              />
+              <Route path="tickets/new" element={<CreateTicket />} />
               <Route
                 path="tickets/:id"
                 element={<ComingSoon title="Ticket Detail" issue="Issue 6" />}
