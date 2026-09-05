@@ -53,8 +53,8 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
     for (let i = 0; i < 12; i++) {
       let summary = `${runToken} fixture ticket ${i}`;
       if (i === 0) summary = `${runToken} laptop battery drains quickly`;
-      if (i === 1) summary = `${runToken} Special 100% CPU spike_issue`;
-      if (i === 2) summary = `${runToken} Special 1000 CPU spike-issue`;
+      if (i === 1) summary = `${runToken} 100% CPU spike_issue`;
+      if (i === 2) summary = `${runToken} 1000 CPU spike-issue`;
 
       const t = await prisma.ticket.create({
         data: {
@@ -127,7 +127,7 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
 
     expect(percentResponse.status).toBe(200);
     expect(percentResponse.body.data.length).toBe(1);
-    expect(percentResponse.body.data[0].summary).toContain('Special 100% CPU spike_issue');
+    expect(percentResponse.body.data[0].summary).toContain('100% CPU spike_issue');
 
     // Search with _ should match 'spike_issue' but NOT 'spike-issue'
     const underscoreResponse = await request(app)
@@ -137,7 +137,7 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
 
     expect(underscoreResponse.status).toBe(200);
     expect(underscoreResponse.body.data.length).toBe(1);
-    expect(underscoreResponse.body.data[0].summary).toContain('Special 100% CPU spike_issue');
+    expect(underscoreResponse.body.data[0].summary).toContain('100% CPU spike_issue');
   });
 
   it('API-09: GET /api/tickets?search= with no matches returns empty data and totalCount 0', async () => {
