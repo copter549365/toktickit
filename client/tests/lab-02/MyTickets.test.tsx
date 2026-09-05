@@ -246,4 +246,64 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
 
     expect(await findInTable('TKT-2026-000001')).toBeInTheDocument();
   });
+
+  it('UI-11: ignores stale responses when rapid page transitions occur', async () => {
+    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(requesterA));
+
+    let resolvePage2: (value: Response) => void = () => {};
+    const pendingPage2 = new Promise<Response>((resolve) => {
+      resolvePage2 = resolve;
+    });
+
+    stubFetch((url) => {
+      const params = new URL(url).searchParams;
+      if (params.get('page') === '2') {
+        return pendingPage2;
+      }
+      if (params.get('page') === '3') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: [makeTicket({ id: 3, ticketNumber: 'TKT-2026-000003', summary: 'Page three ticket' })],
+            meta: { page: 3, pageSize: 10, totalCount: 25, totalPages: 3 },
+          }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [makeTicket({ id: 1, ticketNumber: 'TKT-2026-000001', summary: 'Page one ticket' })],
+          meta: { page: 1, pageSize: 10, totalCount: 25, totalPages: 3 },
+        }),
+      } as Response);
+    });
+
+    renderMyTickets();
+
+    expect(await findInTable('Page one ticket')).toBeInTheDocument();
+
+    // User clicks page 2
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+
+    // User quickly clicks page 3 before page 2 resolves
+    fireEvent.click(screen.getByRole('button', { name: '3' }));
+
+    // Page 3 resolves first
+    expect(await findInTable('Page three ticket')).toBeInTheDocument();
+
+    // Now page 2 resolves late
+    resolvePage2({
+      ok: true,
+      json: async () => ({
+        data: [makeTicket({ id: 2, ticketNumber: 'TKT-2026-000002', summary: 'Page two stale ticket' })],
+        meta: { page: 2, pageSize: 10, totalCount: 25, totalPages: 3 },
+      }),
+    } as Response);
+
+    // Stale page 2 response must NOT overwrite page 3 data
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await findInTable('Page three ticket')).toBeInTheDocument();
+    expect(screen.queryByText('Page two stale ticket')).not.toBeInTheDocument();
+  });
 });
+

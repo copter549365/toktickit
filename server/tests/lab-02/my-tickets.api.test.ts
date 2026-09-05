@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import app from '../../src/app.js';
 import { prisma } from '../../src/db.js';
 
-function uniqueTicketNumber() {
-  return `TKT-2026-${String(Math.floor(Math.random() * 900000) + 100000)}`;
+const createdTicketIds: number[] = [];
+
+function uniqueTicketNumber(index: number) {
+  return `TKT-1999-${String(index + 1).padStart(6, '0')}`;
 }
 
 describe('API-07..API-13: My Tickets List Endpoint', () => {
@@ -18,6 +20,17 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
   // with `search: runToken`. That keeps assertions exact and self-contained against the shared dev
   // DB without needing dedicated Requesters (which would race the seed idempotency test's counts).
   const runToken = `MyTixRun${Date.now()}`;
+
+  afterAll(async () => {
+    if (createdTicketIds.length > 0) {
+      await prisma.attachment.deleteMany({
+        where: { ticketId: { in: createdTicketIds } },
+      });
+      await prisma.ticket.deleteMany({
+        where: { id: { in: createdTicketIds } },
+      });
+    }
+  });
 
   beforeAll(async () => {
     const requesters = await prisma.requesterUser.findMany({
@@ -38,25 +51,31 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
 
     // Requester A: 12 NEW tickets across two categories, so pagination/sort/filter have real data to work with.
     for (let i = 0; i < 12; i++) {
-      await prisma.ticket.create({
+      let summary = `${runToken} fixture ticket ${i}`;
+      if (i === 0) summary = `${runToken} laptop battery drains quickly`;
+      if (i === 1) summary = `${runToken} Special 100% CPU spike_issue`;
+      if (i === 2) summary = `${runToken} Special 1000 CPU spike-issue`;
+
+      const t = await prisma.ticket.create({
         data: {
-          ticketNumber: uniqueTicketNumber(),
+          ticketNumber: uniqueTicketNumber(i),
           requesterId: requesterA.id,
           categoryId: i < 2 ? categoryTwo.id : categoryOne.id,
           relatedSystemId: relatedSystem.id,
-          summary: i === 0 ? `${runToken} laptop battery drains quickly` : `${runToken} fixture ticket ${i}`,
+          summary,
           description: 'Fixture ticket created for My Tickets API list endpoint tests.',
           requestedPriority: 'MEDIUM',
           currentStatus: 'NEW',
         },
       });
+      createdTicketIds.push(t.id);
     }
 
     // Requester B: a couple of tickets that must never leak into A's list (BR-08, AC-11).
     for (let i = 0; i < 2; i++) {
-      await prisma.ticket.create({
+      const t = await prisma.ticket.create({
         data: {
-          ticketNumber: uniqueTicketNumber(),
+          ticketNumber: uniqueTicketNumber(12 + i),
           requesterId: requesterB.id,
           categoryId: categoryOne.id,
           relatedSystemId: relatedSystem.id,
@@ -66,6 +85,7 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
           currentStatus: 'NEW',
         },
       });
+      createdTicketIds.push(t.id);
     }
   });
 
@@ -96,6 +116,28 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.length).toBe(1);
     expect(response.body.data[0].summary).toContain('laptop battery drains quickly');
+  });
+
+  it('API-08b: GET /api/tickets?search= escapes literal % and _ so they do not act as SQL wildcards', async () => {
+    // Search with % should match '100%' but NOT '1000'
+    const percentResponse = await request(app)
+      .get('/api/tickets')
+      .set('x-requester-id', String(requesterA.id))
+      .query({ search: `${runToken} 100%` });
+
+    expect(percentResponse.status).toBe(200);
+    expect(percentResponse.body.data.length).toBe(1);
+    expect(percentResponse.body.data[0].summary).toContain('Special 100% CPU spike_issue');
+
+    // Search with _ should match 'spike_issue' but NOT 'spike-issue'
+    const underscoreResponse = await request(app)
+      .get('/api/tickets')
+      .set('x-requester-id', String(requesterA.id))
+      .query({ search: `${runToken} spike_` });
+
+    expect(underscoreResponse.status).toBe(200);
+    expect(underscoreResponse.body.data.length).toBe(1);
+    expect(underscoreResponse.body.data[0].summary).toContain('Special 100% CPU spike_issue');
   });
 
   it('API-09: GET /api/tickets?search= with no matches returns empty data and totalCount 0', async () => {

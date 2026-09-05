@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRequester } from '../context/RequesterContext';
 import { fetchCategories } from '../api/categories';
@@ -39,6 +39,19 @@ function formatDate(iso: string): string {
   });
 }
 
+function getPaginationItems(currentPage: number, totalPages: number): (number | '...')[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, '...', totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+}
+
 export function MyTickets() {
   const { requester } = useRequester();
   const navigate = useNavigate();
@@ -53,11 +66,14 @@ export function MyTickets() {
   const [sortBy, setSortBy] = useState<TicketSortField>(DEFAULT_SORT_BY);
   const [sortOrder, setSortOrder] = useState<SortOrder>(DEFAULT_SORT_ORDER);
   const [page, setPage] = useState(1);
+  const [retryCount, setRetryCount] = useState(0);
 
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const prevRequesterIdRef = useRef<number | null>(null);
 
   const hasActiveFilters = Boolean(search || categoryId || requestedPriority || currentStatus);
 
@@ -76,15 +92,28 @@ export function MyTickets() {
       .catch(() => setCategories([]));
   }, []);
 
-  const loadTickets = useCallback(async () => {
+  useEffect(() => {
     if (!requester) return;
+
+    // Clear stale rows immediately when the acting Requester changes (BR-06, AC-12).
+    const isRequesterChanged =
+      prevRequesterIdRef.current !== null && prevRequesterIdRef.current !== requester.id;
+    prevRequesterIdRef.current = requester.id;
+
+    if (isRequesterChanged) {
+      setTickets([]);
+      setMeta(null);
+    }
+
     setIsLoading(true);
     setLoadError(null);
-    // Clear stale rows immediately so a Requester switch never shows the previous identity's data (BR-06, AC-12).
-    setTickets([]);
-    setMeta(null);
-    try {
-      const response = await fetchMyTickets(requester.id, {
+
+    let ignore = false;
+    const controller = new AbortController();
+
+    fetchMyTickets(
+      requester.id,
+      {
         search: search || undefined,
         categoryId: categoryId ? Number(categoryId) : undefined,
         requestedPriority: requestedPriority || undefined,
@@ -93,25 +122,32 @@ export function MyTickets() {
         sortOrder,
         page,
         pageSize: PAGE_SIZE,
+      },
+      { signal: controller.signal },
+    )
+      .then((response) => {
+        if (!ignore) {
+          setTickets(response.data);
+          setMeta(response.meta);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!ignore && !(err instanceof DOMException && err.name === 'AbortError')) {
+          if (err instanceof ApiError) {
+            setLoadError('Unable to load your tickets. Please try again.');
+          } else {
+            setLoadError('Unable to reach the server. Please check your connection and try again.');
+          }
+          setIsLoading(false);
+        }
       });
-      setTickets(response.data);
-      setMeta(response.meta);
-    } catch (err) {
-      setTickets([]);
-      setMeta(null);
-      if (err instanceof ApiError) {
-        setLoadError('Unable to load your tickets. Please try again.');
-      } else {
-        setLoadError('Unable to reach the server. Please check your connection and try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [requester, search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page]);
 
-  useEffect(() => {
-    loadTickets();
-  }, [loadTickets]);
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [requester, search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, retryCount]);
 
   const handleSort = (field: TicketSortField) => {
     if (sortBy === field) {
@@ -251,13 +287,13 @@ export function MyTickets() {
         </div>
       </div>
 
-      {isLoading && (
+      {isLoading && tickets.length === 0 && (
         <div className="py-5">
           <LoadingState message="Loading your tickets…" />
         </div>
       )}
 
-      {!isLoading && loadError && <ErrorState message={loadError} onRetry={loadTickets} />}
+      {!isLoading && loadError && <ErrorState message={loadError} onRetry={() => setRetryCount((c) => c + 1)} />}
 
       {!isLoading && !loadError && meta && meta.totalCount === 0 && !hasActiveFilters && (
         <EmptyState
@@ -279,7 +315,7 @@ export function MyTickets() {
         />
       )}
 
-      {!isLoading && !loadError && meta && meta.totalCount > 0 && (
+      {meta && meta.totalCount > 0 && (
         <>
           {/* Desktop / tablet table (ui-spec.md §4.4) */}
           <div className="d-none d-md-block card border-0 shadow-sm">
@@ -375,7 +411,7 @@ export function MyTickets() {
           {/* Pagination (ui-spec.md §4.4) */}
           {meta.totalPages > 1 && (
             <nav aria-label="My Tickets pagination" className="d-flex justify-content-center mt-4">
-              <ul className="pagination mb-0">
+              <ul className="pagination mb-0 flex-wrap justify-content-center">
                 <li className={`page-item ${meta.page <= 1 ? 'disabled' : ''}`}>
                   <button
                     type="button"
@@ -386,18 +422,24 @@ export function MyTickets() {
                     Previous
                   </button>
                 </li>
-                {Array.from({ length: meta.totalPages }, (_, i) => i + 1).map((p) => (
-                  <li key={p} className={`page-item ${p === meta.page ? 'active' : ''}`}>
-                    <button
-                      type="button"
-                      className="page-link"
-                      aria-current={p === meta.page ? 'page' : undefined}
-                      onClick={() => setPage(p)}
-                    >
-                      {p}
-                    </button>
-                  </li>
-                ))}
+                {getPaginationItems(meta.page, meta.totalPages).map((item, idx) =>
+                  item === '...' ? (
+                    <li key={`ellipsis-${idx}`} className="page-item disabled" aria-hidden="true">
+                      <span className="page-link">…</span>
+                    </li>
+                  ) : (
+                    <li key={item} className={`page-item ${item === meta.page ? 'active' : ''}`}>
+                      <button
+                        type="button"
+                        className="page-link"
+                        aria-current={item === meta.page ? 'page' : undefined}
+                        onClick={() => setPage(item)}
+                      >
+                        {item}
+                      </button>
+                    </li>
+                  ),
+                )}
                 <li className={`page-item ${meta.page >= meta.totalPages ? 'disabled' : ''}`}>
                   <button
                     type="button"

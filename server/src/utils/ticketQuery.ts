@@ -52,9 +52,11 @@ export function normalizeTicketListQuery(query: Record<string, unknown>): Normal
     normalized.search = search;
   }
 
-  const categoryId = Number(query.categoryId);
-  if (Number.isInteger(categoryId)) {
-    normalized.categoryId = categoryId;
+  if (query.categoryId !== undefined && query.categoryId !== null && query.categoryId !== '') {
+    const categoryId = Number(query.categoryId);
+    if (Number.isInteger(categoryId) && categoryId > 0) {
+      normalized.categoryId = categoryId;
+    }
   }
 
   if ((REQUESTED_PRIORITIES as readonly string[]).includes(query.requestedPriority as string)) {
@@ -67,3 +69,11 @@ export function normalizeTicketListQuery(query: Record<string, unknown>): Normal
 
   return normalized;
 }
+
+/**
+ * Escapes characters that act as wildcards or escape characters in SQL LIKE/ILIKE expressions.
+ */
+export function escapeLikeWildcards(text: string): string {
+  return text.replace(/([\\%_])/g, '\\$1');
+}
+

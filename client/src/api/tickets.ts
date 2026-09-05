@@ -49,6 +49,7 @@ export async function createTicket(
 export async function fetchMyTickets(
   requesterId: number,
   params: TicketListParams = {},
+  options?: { signal?: AbortSignal },
 ): Promise<TicketListResponse> {
   const query = new URLSearchParams();
   if (params.search) query.set('search', params.search);
@@ -64,6 +65,7 @@ export async function fetchMyTickets(
     headers: {
       'x-requester-id': String(requesterId),
     },
+    signal: options?.signal,
   });
 
   if (!response.ok) {

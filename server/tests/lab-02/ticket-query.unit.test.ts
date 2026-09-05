@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTicketListQuery } from '../../src/utils/ticketQuery.js';
+import { normalizeTicketListQuery, escapeLikeWildcards } from '../../src/utils/ticketQuery.js';
 
 describe('UNIT-03: Ticket List Query Normalizer (BR-27, BR-28, BR-29)', () => {
   it('defaults sortBy to createdAt and sortOrder to desc when omitted (BR-27)', () => {
@@ -52,8 +52,11 @@ describe('UNIT-03: Ticket List Query Normalizer (BR-27, BR-28, BR-29)', () => {
     expect(normalizeTicketListQuery({}).search).toBeUndefined();
   });
 
-  it('only applies categoryId when it parses as an integer', () => {
+  it('only applies categoryId when it parses as a positive integer', () => {
     expect(normalizeTicketListQuery({ categoryId: '3' }).categoryId).toBe(3);
+    expect(normalizeTicketListQuery({ categoryId: '' }).categoryId).toBeUndefined();
+    expect(normalizeTicketListQuery({ categoryId: '0' }).categoryId).toBeUndefined();
+    expect(normalizeTicketListQuery({ categoryId: '-5' }).categoryId).toBeUndefined();
     expect(normalizeTicketListQuery({ categoryId: 'abc' }).categoryId).toBeUndefined();
     expect(normalizeTicketListQuery({}).categoryId).toBeUndefined();
   });
@@ -64,4 +67,13 @@ describe('UNIT-03: Ticket List Query Normalizer (BR-27, BR-28, BR-29)', () => {
     expect(normalizeTicketListQuery({ currentStatus: 'NEW' }).currentStatus).toBe('NEW');
     expect(normalizeTicketListQuery({ currentStatus: 'BOGUS' }).currentStatus).toBeUndefined();
   });
+
+  it('escapeLikeWildcards escapes SQL LIKE/ILIKE special characters correctly', () => {
+    expect(escapeLikeWildcards('100%')).toBe('100\\%');
+    expect(escapeLikeWildcards('test_case')).toBe('test\\_case');
+    expect(escapeLikeWildcards('path\\to\\file')).toBe('path\\\\to\\\\file');
+    expect(escapeLikeWildcards('normal search text 123')).toBe('normal search text 123');
+    expect(escapeLikeWildcards('%_\\')).toBe('\\%\\_\\\\');
+  });
 });
+

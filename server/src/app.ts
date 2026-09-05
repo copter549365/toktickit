@@ -6,7 +6,7 @@ import fs from 'fs';
 import { prisma } from './db.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
 import { validateTicketInputFields } from './utils/validation.js';
-import { normalizeTicketListQuery } from './utils/ticketQuery.js';
+import { normalizeTicketListQuery, escapeLikeWildcards } from './utils/ticketQuery.js';
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
   ensureUploadsDirectory,
@@ -207,9 +207,10 @@ app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
     const where: any = { requesterId: requester.id };
 
     if (search) {
+      const escapedSearch = escapeLikeWildcards(search);
       where.OR = [
-        { ticketNumber: { contains: search, mode: 'insensitive' } },
-        { summary: { contains: search, mode: 'insensitive' } },
+        { ticketNumber: { contains: escapedSearch, mode: 'insensitive' } },
+        { summary: { contains: escapedSearch, mode: 'insensitive' } },
       ];
     }
 
