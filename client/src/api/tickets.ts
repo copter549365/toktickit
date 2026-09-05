@@ -1,5 +1,11 @@
 import { API_URL } from './config';
-import type { Ticket, CreateTicketInput, TicketListParams, TicketListResponse } from '../types/ticket';
+import type {
+  Ticket,
+  TicketDetail,
+  CreateTicketInput,
+  TicketListParams,
+  TicketListResponse,
+} from '../types/ticket';
 import type { Attachment } from '../types/attachment';
 
 export interface ApiErrorResponse {
@@ -62,6 +68,31 @@ export async function fetchMyTickets(
   if (params.pageSize) query.set('pageSize', String(params.pageSize));
 
   const response = await fetch(`${API_URL}/api/tickets?${query.toString()}`, {
+    headers: {
+      'x-requester-id': String(requesterId),
+    },
+    signal: options?.signal,
+  });
+
+  if (!response.ok) {
+    let errorData: ApiErrorResponse;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = { error: 'INTERNAL_ERROR' };
+    }
+    throw new ApiError(response.status, errorData);
+  }
+
+  return response.json();
+}
+
+export async function fetchTicketById(
+  requesterId: number,
+  ticketId: number,
+  options?: { signal?: AbortSignal },
+): Promise<TicketDetail> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}`, {
     headers: {
       'x-requester-id': String(requesterId),
     },

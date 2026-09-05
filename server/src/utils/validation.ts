@@ -38,6 +38,22 @@ export function validatePriority(priority: unknown): { isValid: boolean; error?:
   return { isValid: true };
 }
 
+export function validateRemovalReason(
+  reason: unknown,
+): { isValid: boolean; error?: string; trimmed?: string } {
+  if (typeof reason !== 'string') {
+    return { isValid: false, error: 'A removal reason is required.' };
+  }
+  const trimmed = reason.trim();
+  if (!trimmed) {
+    return { isValid: false, error: 'A removal reason is required.' };
+  }
+  if (trimmed.length < 3 || trimmed.length > 200) {
+    return { isValid: false, error: 'Removal reason must be 3-200 characters.', trimmed };
+  }
+  return { isValid: true, trimmed };
+}
+
 export function validateTicketInputFields(body: any): ValidationResult & {
   trimmedSummary?: string;
   trimmedDescription?: string;

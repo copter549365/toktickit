@@ -5,7 +5,7 @@ import { AppShell } from './components/AppShell';
 import { RequesterSelection } from './screens/RequesterSelection';
 import { CreateTicket } from './screens/CreateTicket';
 import { MyTickets } from './screens/MyTickets';
-import { ComingSoon } from './pages/ComingSoon';
+import { RequesterTicketDetail } from './screens/RequesterTicketDetail';
 
 function App() {
   return (
@@ -18,10 +18,7 @@ function App() {
               <Route index element={<Navigate to="/tickets" replace />} />
               <Route path="tickets" element={<MyTickets />} />
               <Route path="tickets/new" element={<CreateTicket />} />
-              <Route
-                path="tickets/:id"
-                element={<ComingSoon title="Ticket Detail" issue="Issue 6" />}
-              />
+              <Route path="tickets/:id" element={<RequesterTicketDetail />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

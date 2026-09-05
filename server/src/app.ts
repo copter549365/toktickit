@@ -5,7 +5,7 @@ import multer from 'multer';
 import fs from 'fs';
 import { prisma } from './db.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
-import { validateTicketInputFields } from './utils/validation.js';
+import { validateTicketInputFields, validateRemovalReason } from './utils/validation.js';
 import { normalizeTicketListQuery, escapeLikeWildcards } from './utils/ticketQuery.js';
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
@@ -263,6 +263,66 @@ app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
   }
 });
 
+// Ticket Detail Endpoint (api-spec.md §2 "GET /api/tickets/:id")
+app.get('/api/tickets/:id', verifyRequesterContext, async (req, res) => {
+  try {
+    const requester = (req as any).requester;
+    const ticketId = parseInt(req.params.id as string, 10);
+
+    if (isNaN(ticketId)) {
+      res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+      return;
+    }
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        category: { select: { name: true } },
+        relatedSystem: { select: { name: true } },
+        attachments: { orderBy: { uploadedAt: 'asc' } },
+      },
+    });
+
+    // Ownership is never distinguished from not-found (BR-08, AC-03).
+    if (!ticket || ticket.requesterId !== requester.id) {
+      res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+      return;
+    }
+
+    res.status(200).json({
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      requesterId: ticket.requesterId,
+      categoryId: ticket.categoryId,
+      categoryName: ticket.category.name,
+      relatedSystemId: ticket.relatedSystemId,
+      relatedSystemName: ticket.relatedSystem.name,
+      summary: ticket.summary,
+      description: ticket.description,
+      requestedPriority: ticket.requestedPriority,
+      itPriority: ticket.itPriority,
+      currentStatus: ticket.currentStatus,
+      ticketOwnerId: ticket.ticketOwnerId,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+      attachments: ticket.attachments.map((a) => ({
+        id: a.id,
+        ticketId: a.ticketId,
+        originalFileName: a.originalFileName,
+        mimeType: a.mimeType,
+        fileSizeBytes: a.fileSizeBytes,
+        isRemoved: a.isRemoved,
+        removedAt: a.removedAt,
+        removalReason: a.removalReason,
+        uploadedAt: a.uploadedAt,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching ticket:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
 // Upload Attachment Endpoint (api-spec.md §3 "POST /api/tickets/:id/attachments")
 app.post(
   '/api/tickets/:id/attachments',
@@ -362,5 +422,146 @@ app.post(
     }
   },
 );
+
+// Attachment Metadata Endpoint (api-spec.md §3 "GET /api/attachments/:id")
+app.get('/api/attachments/:id', verifyRequesterContext, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requester = (req as any).requester;
+    const attachmentId = parseInt(req.params.id as string, 10);
+
+    if (isNaN(attachmentId)) {
+      res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+      return;
+    }
+
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { ticket: true },
+    });
+
+    if (!attachment || attachment.ticket.requesterId !== requester.id) {
+      res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+      return;
+    }
+
+    res.status(200).json({
+      id: attachment.id,
+      ticketId: attachment.ticketId,
+      originalFileName: attachment.originalFileName,
+      mimeType: attachment.mimeType,
+      fileSizeBytes: attachment.fileSizeBytes,
+      isRemoved: attachment.isRemoved,
+      removedAt: attachment.removedAt,
+      removalReason: attachment.removalReason,
+      uploadedAt: attachment.uploadedAt,
+    });
+  } catch (error) {
+    console.error('Error fetching attachment:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
+// Attachment Download Endpoint (api-spec.md §3 "GET /api/attachments/:id/download")
+app.get(
+  '/api/attachments/:id/download',
+  verifyRequesterContext,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const requester = (req as any).requester;
+      const attachmentId = parseInt(req.params.id as string, 10);
+
+      if (isNaN(attachmentId)) {
+        res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+        return;
+      }
+
+      const attachment = await prisma.attachment.findUnique({
+        where: { id: attachmentId },
+        include: { ticket: true },
+      });
+
+      // Not-found, not-owned, and soft-removed all return the identical response so a
+      // removed file's existence can never be probed (BR-24, AC-24, AC-25).
+      if (!attachment || attachment.ticket.requesterId !== requester.id || attachment.isRemoved) {
+        res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+        return;
+      }
+
+      const filePath = getAttachmentFilePath(attachment.storedFileName);
+      if (!fs.existsSync(filePath)) {
+        res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+        return;
+      }
+
+      const safeFileName = attachment.originalFileName.replace(/["\r\n]/g, '');
+      res.setHeader('Content-Type', attachment.mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+
+      const stream = fs.createReadStream(filePath);
+      stream.on('error', () => {
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'INTERNAL_ERROR' });
+        }
+      });
+      stream.pipe(res);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Soft-Remove Attachment Endpoint (api-spec.md §3 "DELETE /api/attachments/:id")
+app.delete('/api/attachments/:id', verifyRequesterContext, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requester = (req as any).requester;
+    const attachmentId = parseInt(req.params.id as string, 10);
+
+    if (isNaN(attachmentId)) {
+      res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+      return;
+    }
+
+    const reasonValidation = validateRemovalReason(req.body?.removalReason);
+    if (!reasonValidation.isValid) {
+      res.status(400).json({ error: 'REMOVAL_REASON_REQUIRED' });
+      return;
+    }
+
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { ticket: true },
+    });
+
+    if (!attachment || attachment.ticket.requesterId !== requester.id) {
+      res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
+      return;
+    }
+
+    if (attachment.isRemoved) {
+      res.status(409).json({ error: 'ATTACHMENT_ALREADY_REMOVED' });
+      return;
+    }
+
+    const updated = await prisma.attachment.update({
+      where: { id: attachmentId },
+      data: {
+        isRemoved: true,
+        removedAt: new Date(),
+        removalReason: reasonValidation.trimmed,
+      },
+    });
+
+    res.status(200).json({
+      id: updated.id,
+      isRemoved: updated.isRemoved,
+      removedAt: updated.removedAt,
+      removalReason: updated.removalReason,
+    });
+  } catch (error) {
+    console.error('Error removing attachment:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
 
 export default app;

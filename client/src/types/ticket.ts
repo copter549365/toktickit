@@ -1,3 +1,5 @@
+import type { Attachment } from './attachment';
+
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export type TicketStatus =
@@ -24,6 +26,11 @@ export interface Ticket {
   ticketOwnerId: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TicketDetail extends Ticket {
+  relatedSystemName: string;
+  attachments: Attachment[];
 }
 
 export interface CreateTicketInput {

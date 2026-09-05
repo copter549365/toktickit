@@ -162,8 +162,45 @@ Purpose: retrieve one owned Ticket for the Ticket Detail screen (FR-14, FR-15, B
 
 Headers: `x-requester-id` required.
 
-- 200 OK — full ticket, same shape as the POST response body, plus `categoryName` and `relatedSystemName`
-  for display.
+- 200 OK — full ticket, same shape as the POST response body, plus `categoryName`, `relatedSystemName`, and
+  `attachments` (both active and soft-removed, each shaped like the `GET /api/attachments/:id` response
+  below) for display:
+```json
+{
+  "id": 101,
+  "ticketNumber": "TKT-2026-000101",
+  "requesterId": 1,
+  "categoryId": 2,
+  "categoryName": "Hardware",
+  "relatedSystemId": 5,
+  "relatedSystemName": "Corporate Laptop",
+  "summary": "Laptop battery drains quickly",
+  "description": "My laptop battery is draining much faster than usual even when the system is idle.",
+  "requestedPriority": "MEDIUM",
+  "itPriority": null,
+  "currentStatus": "NEW",
+  "ticketOwnerId": null,
+  "createdAt": "2026-08-20T09:14:00.000Z",
+  "updatedAt": "2026-08-20T09:14:00.000Z",
+  "attachments": [
+    {
+      "id": 55,
+      "ticketId": 101,
+      "originalFileName": "screenshot.png",
+      "mimeType": "image/png",
+      "fileSizeBytes": 204800,
+      "isRemoved": false,
+      "removedAt": null,
+      "removalReason": null,
+      "uploadedAt": "2026-08-20T09:20:00.000Z"
+    }
+  ]
+}
+```
+  (Issue 6 addition: the original contract only mentioned `categoryName`/`relatedSystemName`. There is no
+  separate "list attachments for a ticket" endpoint, so the Ticket Detail screen's Attachments panel is
+  populated from this `attachments` array rather than an additional round-trip — see `specification.md`
+  §11.)
 - 404 Not Found — id does not exist, **or** exists but belongs to a different Requester. The response is
   identical in both cases so ownership is never leaked (BR-08, AC-03):
 ```json
