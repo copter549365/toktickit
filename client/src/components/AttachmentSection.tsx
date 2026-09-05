@@ -208,16 +208,27 @@ export function AttachmentSection({
           <ul className="list-group list-group-flush border rounded mb-3" data-testid="active-attachments-list">
             {activeAttachments.map((attachment) => (
               <li key={attachment.id} className="list-group-item p-3" data-testid={`attachment-row-${attachment.id}`}>
-                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                  <div className="d-flex align-items-center gap-2 text-truncate me-2">
-                    <span aria-hidden="true">{fileTypeIcon(attachment.mimeType)}</span>
-                    <span className="text-truncate fw-medium" title={attachment.originalFileName}>
+                <div className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-sm-center gap-2">
+                  <div className="d-flex flex-wrap align-items-center gap-2 w-100" style={{ minWidth: 0 }}>
+                    <span aria-hidden="true" className="flex-shrink-0">
+                      {fileTypeIcon(attachment.mimeType)}
+                    </span>
+                    <span
+                      className="text-truncate fw-medium"
+                      style={{ minWidth: 0, flex: '1 1 auto' }}
+                      title={attachment.originalFileName}
+                    >
                       {attachment.originalFileName}
                     </span>
-                    <span className="badge bg-light text-dark border small">
+                    <span className="badge bg-light text-dark border small flex-shrink-0">
                       {formatBytes(attachment.fileSizeBytes)}
                     </span>
-                    <span className="small text-muted">Uploaded {formatDate(attachment.uploadedAt)}</span>
+                    {/* flex-basis 100% forces this onto its own line so it never competes with
+                        the filename above for width (that's what was crushing long names to a
+                        single ellipsised character on narrow viewports). */}
+                    <span className="small text-muted" style={{ flexBasis: '100%' }}>
+                      Uploaded {formatDate(attachment.uploadedAt)}
+                    </span>
                   </div>
                   <div className="d-flex gap-2 flex-shrink-0">
                     <Button
@@ -288,21 +299,23 @@ export function AttachmentSection({
                   data-testid={`attachment-row-${attachment.id}`}
                   style={{ opacity: 0.8 }}
                 >
-                  <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                    <div className="d-flex align-items-center gap-2 text-truncate me-2">
-                      <span aria-hidden="true">{fileTypeIcon(attachment.mimeType)}</span>
+                  <div className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-sm-center gap-2">
+                    <div className="d-flex align-items-center gap-2 w-100" style={{ minWidth: 0 }}>
+                      <span aria-hidden="true" className="flex-shrink-0">
+                        {fileTypeIcon(attachment.mimeType)}
+                      </span>
                       <span
                         className="text-truncate fw-medium text-muted"
-                        style={{ textDecoration: 'line-through' }}
+                        style={{ textDecoration: 'line-through', minWidth: 0, flex: '1 1 auto' }}
                         title={attachment.originalFileName}
                       >
                         {attachment.originalFileName}
                       </span>
-                      <span className="zg-badge badge-triage-pending">Removed</span>
+                      <span className="zg-badge badge-triage-pending flex-shrink-0">Removed</span>
                     </div>
                     <button
                       type="button"
-                      className="btn btn-zg-secondary"
+                      className="btn btn-zg-secondary flex-shrink-0"
                       disabled
                       title="This attachment was removed and can no longer be downloaded."
                     >

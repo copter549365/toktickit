@@ -116,6 +116,19 @@ body {
   color: #ffffff;
 }
 
+/* Bootstrap's default `.btn:focus-visible` box-shadow relies on a `--bs-btn-focus-box-shadow`
+   variable that only `.btn-primary`/`.btn-secondary` etc. set — our Zen Green button classes
+   don't use those, so without this rule keyboard focus on any button/nav link is invisible
+   (ui-spec.md §7, AC-28). */
+.btn-zg-primary:focus-visible,
+.btn-zg-secondary:focus-visible,
+.btn-zg-tertiary:focus-visible,
+.btn-zg-destructive:focus-visible,
+.zg-shell-nav-link:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
 .btn-zg-primary:disabled,
 .btn-zg-secondary:disabled,
 .btn-zg-tertiary:disabled,

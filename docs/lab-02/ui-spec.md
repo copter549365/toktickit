@@ -173,14 +173,23 @@ tests in `tests.md`.
 
 ## 8. Visual Inspection Checklist (per screen, per viewport)
 
-- [ ] No clipped labels or truncated buttons.
-- [ ] No overlapping validation messages or badges.
-- [ ] No unintended horizontal scrolling on the page body.
-- [ ] Editable vs. read-only fields are visually distinguishable at a glance.
-- [ ] Required-field asterisks present on every required control.
-- [ ] Badge colors match §3 for every Priority/Status value present on screen.
-- [ ] Loading/empty/no-results/error states match the specified copy and layout, not a raw blank screen.
-- [ ] Attachment filenames are fully readable (ellipsis + tooltip, not hard truncation).
+Verified in Issue 7 against the 42 screenshots listed in §9, captured by the Playwright suite in
+`e2e/lab-02/` at desktop/tablet/mobile for every state below.
+
+- [x] No clipped labels or truncated buttons.
+- [x] No overlapping validation messages or badges.
+- [x] No unintended horizontal scrolling on the page body (asserted programmatically in every
+      `e2e/lab-02/responsive-*.spec.ts` test, not just eyeballed).
+- [x] Editable vs. read-only fields are visually distinguishable at a glance.
+- [x] Required-field asterisks present on every required control (also covered by STYLE-01).
+- [x] Badge colors match §3 for every Priority/Status value present on screen (also covered by UI-15).
+- [x] Loading/empty/no-results/error states match the specified copy and layout, not a raw blank screen.
+- [x] Attachment filenames are fully readable (ellipsis + tooltip, not hard truncation). This item
+      failed on first inspection — the metadata row's outer flex container had `text-truncate`
+      fighting its own non-shrinking children (icon/size badge/upload date) for space, crushing
+      filenames like `test-photo.png` down to a single character at mobile width. Fixed in
+      `AttachmentSection.tsx` by giving the upload date its own line and the filename the
+      remaining width; re-verified by re-running the responsive Ticket Detail spec.
 
 ## 9. Screenshot Evidence Paths
 
