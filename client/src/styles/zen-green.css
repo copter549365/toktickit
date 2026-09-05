@@ -229,6 +229,26 @@ body {
   padding: calc(var(--zg-space-unit) * 3) calc(var(--zg-space-unit) * 2);
 }
 
+/* ---- My Tickets: table, cards, pagination (ui-spec.md §4.4) ---- */
+
+.page-link {
+  color: var(--color-secondary);
+}
+.page-link:hover,
+.page-link:focus {
+  color: var(--color-secondary);
+  background-color: var(--color-pale);
+  box-shadow: none;
+}
+.page-item.active .page-link {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+.page-item.disabled .page-link {
+  color: #9ca3a0;
+}
+
 /* Secondary buttons need light-on-dark contrast inside the green header, not the card-context styling. */
 .zg-shell-header .btn-zg-secondary {
   border-color: #ffffff;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import app from '../../src/app.js';
 import { prisma } from '../../src/db.js';
@@ -7,6 +7,17 @@ describe('API-17..API-21: Attachment Uploads Endpoint', () => {
   let requesterA: { id: number };
   let requesterB: { id: number };
   let testTicket: { id: number };
+
+  afterEach(async () => {
+    if (testTicket?.id) {
+      await prisma.attachment.deleteMany({
+        where: { ticketId: testTicket.id },
+      });
+      await prisma.ticket.deleteMany({
+        where: { id: testTicket.id },
+      });
+    }
+  });
 
   beforeEach(async () => {
     const requesters = await prisma.requesterUser.findMany({
@@ -23,7 +34,7 @@ describe('API-17..API-21: Attachment Uploads Endpoint', () => {
 
     testTicket = await prisma.ticket.create({
       data: {
-        ticketNumber: `TKT-2026-${String(Math.floor(Math.random() * 900000) + 100000)}`,
+        ticketNumber: `TKT-1998-${String(Math.floor(Math.random() * 900000) + 100000)}`,
         requesterId: requesterA.id,
         categoryId: category!.id,
         relatedSystemId: relatedSystem!.id,
