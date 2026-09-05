@@ -11,21 +11,7 @@ import { ErrorState } from '../components/ErrorState';
 import type { Category } from '../types/category';
 import type { RelatedSystem } from '../types/relatedSystem';
 import type { Priority, Ticket } from '../types/ticket';
-
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-];
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { formatBytes, validateAttachmentFile } from '../utils/attachmentValidation';
 
 export function CreateTicket() {
   const { requester } = useRequester();
@@ -94,17 +80,9 @@ export function CreateTicket() {
         break;
       }
 
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      const isValidExt = ALLOWED_EXTENSIONS.includes(ext);
-      const isValidMime = !file.type || ALLOWED_MIME_TYPES.includes(file.type.toLowerCase());
-
-      if (!isValidExt || !isValidMime) {
-        setAttachmentError(`File "${file.name}" has an unsupported file type. Allowed: JPG, PNG, WEBP, PDF.`);
-        continue;
-      }
-
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setAttachmentError(`File "${file.name}" exceeds the 5 MB size limit (${formatBytes(file.size)}).`);
+      const error = validateAttachmentFile(file);
+      if (error) {
+        setAttachmentError(error);
         continue;
       }
 

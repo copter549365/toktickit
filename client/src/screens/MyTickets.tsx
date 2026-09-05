@@ -18,6 +18,7 @@ import type {
   TicketSortField,
   TicketStatus,
 } from '../types/ticket';
+import { formatDate } from '../utils/formatDate';
 
 const PAGE_SIZE = 10;
 const DEFAULT_SORT_BY: TicketSortField = 'createdAt';
@@ -30,14 +31,6 @@ const SORT_COLUMNS: { field: TicketSortField; label: string }[] = [
   { field: 'createdAt', label: 'Created Date' },
   { field: 'summary', label: 'Summary' },
 ];
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 function getPaginationItems(currentPage: number, totalPages: number): (number | '...')[] {
   if (totalPages <= 7) {

@@ -244,3 +244,9 @@ branch per issue merged via reviewed PR into `lab2-staging`, then one release PR
 - **Field length limits** (BR-11, BR-12) are not specified by the handout; 5–120 chars for Summary and
   10–2000 chars for Description were chosen to keep the list view readable while allowing a real problem
   description, and are enforced identically on client and server.
+- **Ticket Detail attachments**: `api-spec.md` §2 originally listed `GET /api/tickets/:id` as returning only
+  ticket fields plus `categoryName`/`relatedSystemName`, with no separate endpoint to list a ticket's
+  attachments. Since the Ticket Detail Attachments panel (FR-14, ui-spec.md §4.5) needs the full active +
+  removed list, Issue 6 extends that response with an `attachments` array (each entry shaped like
+  `GET /api/attachments/:id`) instead of adding a second round-trip endpoint. `api-spec.md` has been updated
+  to reflect this as the current contract.
