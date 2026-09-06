@@ -7,8 +7,3 @@ build/
 .claude/
 .windsurf/
 node_modules
-uploads/
-server/uploads/
-/playwright-report/
-/test-results/
-/blob-report/
