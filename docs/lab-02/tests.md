@@ -76,14 +76,14 @@ file path, per the required repository structure.
 | UI-14 | UI | AC-24 | Attachment section: removed attachment shows disabled download with explanation | Download control disabled, tooltip/message present | `client/tests/lab-02/AttachmentSection.test.tsx` | Pass |
 | UI-15 | UI | — (ui-spec §3) | Badge components render correct color+text for each Priority/Status value | Snapshot/class assertions match `ui-spec.md` §3 table | `client/tests/lab-02/Badges.test.tsx` | Pass |
 | STYLE-01 | UI Style | AC-28, ui-spec §7 | Required-field asterisk + `role="alert"` validation message present on invalid fields | Assertions on DOM attributes/classes across Create Ticket fields | `client/tests/lab-02/FormAccessibility.test.tsx` | Pass |
-| RESP-01 | Responsive | AC-26 | My Tickets at <768px renders stacked cards, no horizontal scroll | Playwright viewport screenshot + `scrollWidth` check | `e2e/lab-02/responsive-my-tickets.spec.ts` | Planned |
-| RESP-02 | Responsive | AC-27 | Create Ticket at 768–991px keeps Summary/Description full width, no clipped labels | Playwright viewport screenshot + layout assertions | `e2e/lab-02/responsive-create-ticket.spec.ts` | Planned |
-| RESP-03 | Responsive | ui-spec §6 | Ticket Detail at all three breakpoints matches `ui-spec.md` visual checklist | Screenshots saved to `artifacts/lab-02/screenshots/ticket-detail/` | `e2e/lab-02/responsive-ticket-detail.spec.ts` | Planned |
-| E2E-01 | E2E | AC-01, AC-02 | Select a Development Requester, create a valid ticket, see the generated Ticket Number | Full flow completes; number matches what My Tickets later shows | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-02 | E2E | AC-11, AC-12 | Create a ticket as Requester A, switch to Requester B, confirm A's ticket is not visible, switch back and confirm it is | Isolation holds in both directions | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-03 | E2E | AC-22, AC-23, AC-24 | Open a created ticket, add an attachment, soft-remove it with a reason, confirm download is blocked | Full attachment lifecycle observable end-to-end | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-04 | E2E | AC-13, AC-16, AC-17 | Create several tickets, then search + filter + paginate My Tickets to find one | Correct subset found at each step | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-05 | E2E | AC-28 | Keyboard-only pass through Requester Selection → Create Ticket submit | Every control reachable via Tab, focus visible, form submittable without a mouse | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| RESP-01 | Responsive | AC-26 | My Tickets at <768px renders stacked cards, no horizontal scroll | Playwright viewport screenshot + `scrollWidth` check | `e2e/lab-02/responsive-my-tickets.spec.ts` | Pass |
+| RESP-02 | Responsive | AC-27 | Create Ticket at 768–991px keeps Summary/Description full width, no clipped labels | Playwright viewport screenshot + layout assertions | `e2e/lab-02/responsive-create-ticket.spec.ts` | Pass |
+| RESP-03 | Responsive | ui-spec §6 | Ticket Detail at all three breakpoints matches `ui-spec.md` visual checklist | Screenshots saved to `artifacts/lab-02/screenshots/ticket-detail/` | `e2e/lab-02/responsive-ticket-detail.spec.ts` | Pass |
+| E2E-01 | E2E | AC-01, AC-02 | Select a Development Requester, create a valid ticket, see the generated Ticket Number | Full flow completes; number matches what My Tickets later shows | `e2e/lab-02/requester-ticket-flow.spec.ts` | Pass |
+| E2E-02 | E2E | AC-11, AC-12 | Create a ticket as Requester A, switch to Requester B, confirm A's ticket is not visible, switch back and confirm it is | Isolation holds in both directions | `e2e/lab-02/requester-ticket-flow.spec.ts` | Pass |
+| E2E-03 | E2E | AC-22, AC-23, AC-24 | Open a created ticket, add an attachment, soft-remove it with a reason, confirm download is blocked | Full attachment lifecycle observable end-to-end | `e2e/lab-02/requester-ticket-flow.spec.ts` | Pass |
+| E2E-04 | E2E | AC-13, AC-16, AC-17 | Create several tickets, then search + filter + paginate My Tickets to find one | Correct subset found at each step | `e2e/lab-02/requester-ticket-flow.spec.ts` | Pass |
+| E2E-05 | E2E | AC-28 | Keyboard-only pass through Requester Selection → Create Ticket submit | Every control reachable via Tab, focus visible, form submittable without a mouse | `e2e/lab-02/requester-ticket-flow.spec.ts` | Pass |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -142,13 +142,14 @@ npx playwright test e2e/lab-02
 
 ## 6. Final Results
 
-Not yet run in full — implementation is in progress. This section is updated as Issues 2–7 land, with the
-final consolidated pass/fail output filled in before the Issue 7 release PR.
+This section is updated as Issues 2–7 land, with the final consolidated pass/fail output confirmed before
+the Issue 7 release PR.
 
 - **Issue 3** (Development Requester Selection & Context Management): API-29 and UI-01 pass.
 - **Issue 4** (Create Ticket Flow & Initial Attachment Upload): UNIT-01, UNIT-02, API-01..API-06, API-17..API-21, API-30, DB-01, UI-02..UI-06, UI-15, and STYLE-01 pass. Full ticket creation lifecycle with validation, requester scoping, sequential ticket number generation, and attachment uploading is tested and verified.
 - **Issue 5** (My Tickets Screen): UNIT-03, API-07..API-13, and UI-07..UI-10 pass. `GET /api/tickets` search/filter/sort/pagination is owner-scoped and verified end-to-end; the My Tickets screen renders the desktop table and mobile card layouts, handles empty/no-results/loading/error states distinctly, clears stale rows on a Requester switch, and drives pagination/sort through real query params. Manually smoke-tested against the dev server/DB (search, filters, sort, pagination, row navigation to Ticket Detail all confirmed working); full-viewport responsive screenshot capture is deferred to Issue 7 per the sprint plan.
 - **Issue 6** (Requester Ticket Detail & Attachment Lifecycle): API-14..API-16 and API-22..API-28 pass, alongside the pre-existing API-17..API-21. UI-11..UI-14 pass. `GET /api/tickets/:id` returns the full read-only field set plus the ticket's attachments (active and removed) — see the api-spec.md §2 note on this addition; attachment download streams the correct bytes/headers for an active, owned attachment and returns an identical `ATTACHMENT_NOT_FOUND` for not-found, not-owned, and soft-removed attachments alike so removal can never be probed; soft-removal requires and stores a 3–200 character reason and is rejected a second time on an already-removed attachment. Manually smoke-tested against the dev server/DB: opened an existing ticket, uploaded a real PNG (appeared active immediately, 1/5 counter), downloaded it (confirmed 200 via network inspection), then soft-removed it with a reason (moved to the Removed section with a disabled Download control and the reason/date shown, counter back to 0/5). Responsive screenshot capture (RESP-03) and the attachment leg of the E2E journey (E2E-03) remain deferred to Issue 7 per the sprint plan.
+- **Issue 7** (E2E Tests, Responsive Visual Inspection & Release Prep): RESP-01..RESP-03 and E2E-01..E2E-05 pass against the real Express API, PostgreSQL, and both dev servers (Playwright's `webServer` starts them automatically), all traceable to their real files under `e2e/lab-02/`. The full Requester journey — Selection → Create Ticket → My Tickets → Ticket Detail → attachment add/soft-remove/blocked-download, including a direct-API confirmation that a removed attachment's bytes are never served — is exercised end-to-end, alongside cross-Requester isolation (both directions), search+filter+pagination against 11 API-seeded tickets, and a keyboard-only pass with a real focus-visibility check. All 42 screenshots specified in `ui-spec.md` §9 were captured and visually reviewed; two real defects surfaced by that review were fixed in this issue rather than worked around in the tests: (1) every Zen Green button and nav link had **no visible keyboard-focus indicator** (`zen-green.css` relied on Bootstrap's `--bs-btn-focus-box-shadow`, which only `.btn-primary`/`.btn-secondary` etc. set — our custom `.btn-zg-*` classes never did), fixed with an explicit `:focus-visible` outline rule; (2) the attachment metadata row on Ticket Detail crushed the filename to a single ellipsised character at narrow viewports (an outer flex container's `text-truncate` fought its own non-shrinking children for space), fixed by letting the upload-date wrap to its own line and giving the filename the remaining width. `npm test` is green in both `server/` and `client/` except one pre-existing, unrelated failure (see below); `npm run test:e2e` is green from the root.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -157,3 +158,22 @@ final consolidated pass/fail output filled in before the Issue 7 release PR.
   deferred to a later lab if required.
 - File-storage failure injection (e.g. disk full) is not covered — only application-level validation
   failures (type/size/limit) are tested.
+- The My Tickets "empty" screenshot (zero tickets ever, no filters) is captured against a mocked
+  zero-row API response rather than a genuinely empty seeded Requester: the four active seed
+  Requesters accumulate fixture tickets across every dev/E2E run, so none can be relied on to stay
+  at zero. The real "no rows, no filters" code path is still exercised for real by UI-07
+  (`MyTickets.test.tsx`); the E2E capture is visual evidence of the same rendered state, not an
+  additional functional check.
+- The shared local dev database (`docker compose`) has accumulated stray `RequesterUser` rows
+  (`My Tickets Test Requester A/B <timestamp>`) from a fixture-pollution bug in `my-tickets.api.test.ts`
+  that predates the fix noted in the Issue 5 commit history; they show up as extra, oddly-named
+  options in the Development Requester Selection dropdown in a fresh local environment. They're
+  cosmetic dev-data noise, not a code defect — cleaning them up is a one-time local DB task
+  (delete `RequesterUser` rows with `id > 5` and their tickets/attachments), not a schema or seed
+  change, and wasn't done automatically here since it's a bulk-delete against real dev data.
+- `API-08b` (`server/tests/lab-02/my-tickets.api.test.ts`, added on `feat/my-tickets`) fails on this
+  branch: the search-with-underscore assertion expects `${runToken} spike_` to match
+  `${runToken} 100% CPU spike_issue`, but that search string is not a substring of the fixture
+  summary (there's a `100% CPU` in between), so it returns 0 rows regardless of whether `_`-escaping
+  works. This is unrelated to Issue 6/7 and was flagged back rather than re-edited, since the fixture
+  in that file had already been corrected and approved once this sprint.

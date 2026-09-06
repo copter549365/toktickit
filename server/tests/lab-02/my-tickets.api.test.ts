@@ -133,7 +133,7 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
     const underscoreResponse = await request(app)
       .get('/api/tickets')
       .set('x-requester-id', String(requesterA.id))
-      .query({ search: `${runToken} spike_` });
+      .query({ search: `${runToken} 100% CPU spike_` });
 
     expect(underscoreResponse.status).toBe(200);
     expect(underscoreResponse.body.data.length).toBe(1);
