@@ -70,13 +70,36 @@ toktickit/
 ├── generated/
 │   └── prisma/           ← generated Prisma Client (git-ignored)
 ├── client/               ← React + Vite + Bootstrap frontend
-└── server/               ← Express + TypeScript backend
+├── server/               ← Express + TypeScript backend
+├── e2e/lab-02/           ← Playwright E2E + responsive visual tests (Issue 7)
+├── artifacts/lab-02/     ← screenshot evidence captured by the E2E suite
+└── docs/lab-02/          ← Lab 2 engineering contract (spec, tests, UI/API specs)
 ```
 ## Tests
 ```
 cd server && npm test
 cd client && npm test
 ```
+
+### End-to-end & responsive visual tests (Lab 2, Issue 7)
+
+The Playwright suite in `e2e/lab-02` exercises the full Requester journey (Selection → Create Ticket →
+My Tickets → Ticket Detail → attachment lifecycle) and captures desktop/tablet/mobile screenshots against
+the real Express API and PostgreSQL — not mocks — matching `docs/lab-02/tests.md`'s E2E-01..05 and
+RESP-01..03 rows.
+
+```bash
+# From the project root, one-time setup
+npm install
+npx playwright install chromium
+
+# Ensure the database is up (docker compose up -d) — the suite starts the client/server dev
+# servers itself (playwright.config.ts `webServer`) if they aren't already running.
+npm run test:e2e
+```
+
+Screenshot evidence is written to `artifacts/lab-02/screenshots/{create-ticket,my-tickets,ticket-detail}/`
+per `docs/lab-02/ui-spec.md` §9. `npx playwright show-report` opens the HTML report from the last run.
 
 ## Tech Stack
 
