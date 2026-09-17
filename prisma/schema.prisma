@@ -16,5 +16,79 @@ model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
   createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
+model RequesterUser {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
+model RelatedSystem {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
+model Ticket {
+  id                Int           @id @default(autoincrement())
+  ticketNumber      String        @unique
+  requesterId       Int
+  requester         RequesterUser @relation(fields: [requesterId], references: [id])
+  categoryId        Int
+  category          Category      @relation(fields: [categoryId], references: [id])
+  relatedSystemId   Int
+  relatedSystem     RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  summary           String
+  description       String
+  requestedPriority Priority
+  itPriority        Priority?
+  currentStatus     TicketStatus  @default(NEW)
+  ticketOwnerId     Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  attachments       Attachment[]
+
+  @@index([requesterId])
+  @@index([categoryId])
+  @@index([relatedSystemId])
+  @@index([requesterId, createdAt])
+}
+
+model Attachment {
+  id               Int       @id @default(autoincrement())
+  ticketId         Int
+  ticket           Ticket    @relation(fields: [ticketId], references: [id])
+  originalFileName String
+  storedFileName   String
+  mimeType         String
+  fileSizeBytes    Int
+  isRemoved        Boolean   @default(false)
+  removedAt        DateTime?
+  removalReason    String?
+  uploadedAt       DateTime  @default(now())
+
+  @@index([ticketId])
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TicketStatus {
+  NEW
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  CANCELLED
 }
 
