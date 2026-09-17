@@ -5,7 +5,11 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
+  "scripts": {
+    "test:e2e": "playwright test e2e/lab-02"
+  },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@prisma/client": "^7.9.1",
     "@types/node": "^26.2.0",
     "@types/pg": "^8.11.11",
