@@ -22,8 +22,8 @@ describe('API-17..API-21: Attachment Uploads Endpoint', () => {
   });
 
   beforeEach(async () => {
-    const requesters = await prisma.requesterUser.findMany({
-      where: { isActive: true },
+    const requesters = await prisma.user.findMany({
+      where: { isActive: true, role: 'REQUESTER' },
       take: 2,
     });
     requesterA = requesters[0];
@@ -180,8 +180,8 @@ describe('API-22..API-28: Attachment Metadata, Download & Soft-Removal', () => {
   });
 
   beforeEach(async () => {
-    const requesters = await prisma.requesterUser.findMany({
-      where: { isActive: true },
+    const requesters = await prisma.user.findMany({
+      where: { isActive: true, role: 'REQUESTER' },
       take: 2,
     });
     requesterA = requesters[0];

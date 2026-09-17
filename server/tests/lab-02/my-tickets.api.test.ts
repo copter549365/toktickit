@@ -33,8 +33,8 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
   });
 
   beforeAll(async () => {
-    const requesters = await prisma.requesterUser.findMany({
-      where: { isActive: true },
+    const requesters = await prisma.user.findMany({
+      where: { isActive: true, role: 'REQUESTER' },
       take: 2,
     });
     requesterA = requesters[0];
@@ -224,8 +224,8 @@ describe('API-07..API-13: My Tickets List Endpoint', () => {
   });
 
   it('GET /api/tickets with an inactive Requester ID returns 401 INVALID_REQUESTER_CONTEXT', async () => {
-    const inactiveRequester = await prisma.requesterUser.findFirst({
-      where: { isActive: false },
+    const inactiveRequester = await prisma.user.findFirst({
+      where: { isActive: false, role: 'REQUESTER' },
     });
     expect(inactiveRequester).not.toBeNull();
 

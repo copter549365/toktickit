@@ -11,8 +11,8 @@ describe('API-14..API-16: Ticket Detail Endpoint', () => {
   const createdTicketIds: number[] = [];
 
   beforeAll(async () => {
-    const requesters = await prisma.requesterUser.findMany({
-      where: { isActive: true },
+    const requesters = await prisma.user.findMany({
+      where: { isActive: true, role: 'REQUESTER' },
       take: 2,
     });
     requesterA = requesters[0];

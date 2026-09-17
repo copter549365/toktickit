@@ -12,18 +12,42 @@ datasource db {
   provider = "postgresql"
 }
 
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Lab 3 — expanded 8-status lifecycle (was 6 in Lab 2)
+enum TicketStatus {
+  NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
+}
+
+// Lab 3 — unified user role
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
-  createdAt DateTime @default(now())
-  tickets   Ticket[]
-}
-
-model RequesterUser {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   tickets   Ticket[]
 }
@@ -36,29 +60,57 @@ model RelatedSystem {
   tickets   Ticket[]
 }
 
+// Lab 3 — replaces Lab 2 RequesterUser; absorbs all identities via migration
+model User {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  email               String    @unique
+  passwordHash        String
+  role                UserRole
+  isActive            Boolean   @default(true)
+  mustChangePassword  Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tickets             Ticket[]         @relation("requester")
+  assignedTickets     Ticket[]         @relation("ticketOwner")
+  publicComments      PublicComment[]
+  internalNotes       InternalNote[]
+
+  @@index([email])
+  @@index([role])
+}
+
 model Ticket {
-  id                Int           @id @default(autoincrement())
-  ticketNumber      String        @unique
-  requesterId       Int
-  requester         RequesterUser @relation(fields: [requesterId], references: [id])
-  categoryId        Int
-  category          Category      @relation(fields: [categoryId], references: [id])
-  relatedSystemId   Int
-  relatedSystem     RelatedSystem @relation(fields: [relatedSystemId], references: [id])
-  summary           String
-  description       String
-  requestedPriority Priority
-  itPriority        Priority?
-  currentStatus     TicketStatus  @default(NEW)
-  ticketOwnerId     Int?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  attachments       Attachment[]
+  id                        Int          @id @default(autoincrement())
+  ticketNumber              String       @unique
+  requesterId               Int
+  requester                 User         @relation("requester", fields: [requesterId], references: [id])
+  categoryId                Int
+  category                  Category     @relation(fields: [categoryId], references: [id])
+  relatedSystemId           Int
+  relatedSystem             RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  summary                   String
+  description               String
+  requestedPriority         Priority
+  itPriority                Priority?
+  currentStatus             TicketStatus @default(NEW)
+  ticketOwnerId             Int?
+  ticketOwner               User?        @relation("ticketOwner", fields: [ticketOwnerId], references: [id])
+  // Lab 3 — requester acknowledges resolution before CLOSED
+  requesterResolvedIndicator Boolean     @default(false)
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+  attachments               Attachment[]
+  publicComments            PublicComment[]
+  internalNotes             InternalNote[]
 
   @@index([requesterId])
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([requesterId, createdAt])
+  @@index([ticketOwnerId])
+  @@index([currentStatus])
 }
 
 model Attachment {
@@ -77,18 +129,30 @@ model Attachment {
   @@index([ticketId])
 }
 
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
+// Lab 3 — visible to requester and IT staff; logged on ticket timeline
+model PublicComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([authorId])
 }
 
-enum TicketStatus {
-  NEW
-  OPEN
-  IN_PROGRESS
-  RESOLVED
-  CLOSED
-  CANCELLED
-}
+// Lab 3 — IT staff only; hidden from requester
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
 
+  @@index([ticketId])
+  @@index([authorId])
+}

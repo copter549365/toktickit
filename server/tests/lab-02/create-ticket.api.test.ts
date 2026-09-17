@@ -5,8 +5,8 @@ import { prisma } from '../../src/db.js';
 
 describe('API-01..API-06: Create Ticket Endpoint', () => {
   it('API-01: POST /api/tickets with valid body creates a ticket with NEW status and unique Ticket Number', async () => {
-    const activeRequester = await prisma.requesterUser.findFirst({
-      where: { isActive: true },
+    const activeRequester = await prisma.user.findFirst({
+      where: { isActive: true, role: 'REQUESTER' },
     });
     expect(activeRequester).not.toBeNull();
 
@@ -63,8 +63,8 @@ describe('API-01..API-06: Create Ticket Endpoint', () => {
   });
 
   it('API-02: POST /api/tickets missing Summary returns 400 VALIDATION_FAILED with fieldErrors.summary', async () => {
-    const activeRequester = await prisma.requesterUser.findFirst({
-      where: { isActive: true },
+    const activeRequester = await prisma.user.findFirst({
+      where: { isActive: true, role: 'REQUESTER' },
     });
     const category = await prisma.category.findFirst();
     const relatedSystem = await prisma.relatedSystem.findFirst({
@@ -95,8 +95,8 @@ describe('API-01..API-06: Create Ticket Endpoint', () => {
   });
 
   it('API-03: POST /api/tickets with Description too short returns 400 VALIDATION_FAILED with fieldErrors.description', async () => {
-    const activeRequester = await prisma.requesterUser.findFirst({
-      where: { isActive: true },
+    const activeRequester = await prisma.user.findFirst({
+      where: { isActive: true, role: 'REQUESTER' },
     });
     const category = await prisma.category.findFirst();
     const relatedSystem = await prisma.relatedSystem.findFirst({
@@ -127,8 +127,8 @@ describe('API-01..API-06: Create Ticket Endpoint', () => {
   });
 
   it('API-04: POST /api/tickets with unknown categoryId returns 400 INVALID_REFERENCE', async () => {
-    const activeRequester = await prisma.requesterUser.findFirst({
-      where: { isActive: true },
+    const activeRequester = await prisma.user.findFirst({
+      where: { isActive: true, role: 'REQUESTER' },
     });
     const relatedSystem = await prisma.relatedSystem.findFirst({
       where: { isActive: true },
@@ -175,8 +175,8 @@ describe('API-01..API-06: Create Ticket Endpoint', () => {
   });
 
   it('API-06: POST /api/tickets with an inactive Requester ID returns 401 INVALID_REQUESTER_CONTEXT', async () => {
-    const inactiveRequester = await prisma.requesterUser.findFirst({
-      where: { isActive: false },
+    const inactiveRequester = await prisma.user.findFirst({
+      where: { isActive: false, role: 'REQUESTER' },
     });
     expect(inactiveRequester).not.toBeNull();
 
