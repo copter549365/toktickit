@@ -6,14 +6,19 @@ Base URL: `/api`. All response payloads are in JSON format. All request/response
 
 ## 0. Authentication, Session & Error Architecture
 
-### 0.1. Authentication Strategy
-- **Session Mechanism:** JSON Web Token (JWT) issued upon successful credentials check, stored in an `HttpOnly`, `Secure` (in production), `SameSite=Lax` cookie named `toktickit_session`.
+### 0.1. Authentication & CSRF Architecture
+- **Session Mechanism:** JSON Web Token (JWT) issued upon successful credentials check, stored in an `HttpOnly`, `Secure` (in production environments), `SameSite=Lax` cookie named `toktickit_session`.
 - **Token Claims:** `{ "userId": number, "email": string, "role": "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR", "mustChangePassword": boolean, "exp": number }`.
 - **Token Lifetime:** 8 hours. Expired tokens yield `401 Unauthorized`.
 - **Password Hashing:** Passwords must be hashed using `bcrypt` (minimum 10 salt rounds) before database storage. Plaintext passwords must never be stored or logged.
+- **CSRF Defense Considerations:**
+  - In accordance with course specifications (§6.1), the application secures mutating operations through defense-in-depth:
+    1. **`SameSite=Lax` Cookies:** Prevents modern browsers from sending the session cookie on cross-site requests initiated via `POST`, `PUT`, `PATCH`, or `DELETE` from external sites.
+    2. **JSON Content-Type & Preflight Enforcement:** All mutating endpoints require `Content-Type: application/json`.
+    3. **Custom Header Check:** Mutating requests verify the presence of `X-Requested-With: XMLHttpRequest` (or standard JSON body parsers). Standard HTML form submissions (`<form method="POST">`) cannot set custom HTTP headers or send JSON payloads without triggering a CORS preflight, effectively preventing Cross-Site Request Forgery without requiring separate synchronizer token endpoints.
 
 ### 0.2. Authorization & Middleware Guardrails
-- **`requireAuth`:** Verifies the session cookie; attaches user identity (`req.user`) to the request context. Returns `401 Unauthorized` if invalid or missing.
+- **`requireAuth`:** Verifies the session cookie; attaches user identity (`req.user`) to the request context. Returns `401 Unauthorized` (`MISSING_OR_INVALID_TOKEN`) if invalid or missing.
 - **`requirePasswordChangeCompleted`:** If `req.user.mustChangePassword === true`, all requests except `POST /api/auth/change-password`, `POST /api/auth/logout`, and `GET /api/auth/me` are rejected with `403 Forbidden` (`PASSWORD_CHANGE_REQUIRED`).
 - **`requireRole(roles...)`:** Enforces RBAC permissions. If `req.user.role` is not in the permitted roles list, the request is rejected with `403 Forbidden` (`FORBIDDEN_ROLE`).
 
@@ -30,14 +35,14 @@ All error responses adhere to a consistent JSON structure:
 ```
 
 Common status codes:
-- `400 Bad Request`: Validation failure or invalid parameter.
-- `401 Unauthorized`: Missing or invalid authentication token.
-- `403 Forbidden`: Authenticated user lacks permission or requires password change.
+- `400 Bad Request`: Validation failure, invalid transition, or invalid parameter.
+- `401 Unauthorized`: Missing, invalid, or expired authentication token.
+- `403 Forbidden`: Authenticated user lacks role permissions or requires mandatory password change.
 - `404 Not Found`: Resource does not exist (or concealed to prevent data leakage).
-- `409 Conflict`: Conflict with current state (e.g. duplicate email, invalid status transition).
+- `409 Conflict`: Conflict with current state (e.g. duplicate email).
 - `413 Payload Too Large`: Uploaded file exceeds 5 MB.
 - `415 Unsupported Media Type`: Uploaded file extension/MIME type is not allowed.
-- `500 Internal Server Error`: Safe unexpected error message without leaking stack traces.
+- `500 Internal Server Error`: Safe unexpected error message without leaking internal details.
 
 ---
 
@@ -65,7 +70,7 @@ Authenticates a user by email and password.
         "name": "Jennifer Anderson",
         "email": "jennifer.anderson@toktickit.com",
         "role": "REQUESTER",
-        "mustChangePassword": false
+        "mustChangePassword": true
       }
     }
     ```
@@ -102,7 +107,7 @@ Retrieves the profile and role of the currently authenticated user.
   - `401 Unauthorized`: If not authenticated.
 
 ### POST /api/auth/change-password
-Mandatory password change endpoint for users with `mustChangePassword: true` (or normal password change).
+Mandatory password change endpoint for users with `mustChangePassword: true` (or standard password change).
 
 - **Request Body:**
   ```json
@@ -206,7 +211,8 @@ Creates a new ticket owned by the authenticated Requester.
         "itPriority": "MEDIUM",
         "currentStatus": "NEW",
         "requesterId": 1,
-        "ticketOwnerId": null
+        "ticketOwnerId": null,
+        "requesterResolvedIndicator": false
       }
     }
     ```
@@ -219,15 +225,44 @@ Retrieves detailed information for a single ticket owned by the Requester (or an
   - `404 Not Found`: Ticket does not exist or belongs to another Requester (no information leak).
 
 ### PATCH /api/tickets/:id/resolve-indicator
-Allows the ticket Requester to indicate that their issue appears resolved.
+Allows the ticket Requester to indicate that their issue appears resolved (FR-13, AC-15).
 
 - **Request Body:**
   ```json
   { "appearsResolved": true }
   ```
 - **Responses:**
-  - `200 OK`: Sets `requesterResolvedIndicator = true`. Note that ticket status remains `IN_PROGRESS` or `WAITING_FOR_REQUESTER` until IT Staff formally closes or resolves it.
-  - `403 Forbidden`: User is not the owner of this ticket.
+  - `200 OK`: Sets `requesterResolvedIndicator = true`.
+    ```json
+    {
+      "id": 10,
+      "requesterResolvedIndicator": true,
+      "message": "Problem resolution indicated. IT Staff will review and formally complete the ticket."
+    }
+    ```
+  - `400 Bad Request`: Ticket is in `NEW`, `RESOLVED`, `CLOSED`, or `CANCELLED` status (must be `IN_PROGRESS` or `WAITING_FOR_REQUESTER`).
+  - `403 Forbidden` / `404 Not Found`: User is not the owner of this ticket.
+
+### PATCH /api/tickets/:id/cancel
+Allows the ticket Requester to cancel their own ticket if it has not yet been taken up by IT Staff (FR-13.1, BR-13).
+
+- **Request Body:**
+  ```json
+  { "cancellationReason": "Issue resolved itself after rebooting." }
+  ```
+- **Validation:**
+  - Ticket must be owned by the authenticated Requester.
+  - Ticket must currently have status `NEW`.
+- **Responses:**
+  - `200 OK`:
+    ```json
+    {
+      "id": 10,
+      "currentStatus": "CANCELLED",
+      "updatedAt": "2026-09-17T10:30:00.000Z"
+    }
+    ```
+  - `400 Bad Request`: Ticket is already in `OPEN`, `IN_PROGRESS`, or later status (`"TICKET_ALREADY_IN_PROGRESS"`).
 
 ---
 
@@ -265,7 +300,7 @@ Returns all tickets across all requesters with comprehensive search, filter, sor
           "currentStatus": "IN_PROGRESS",
           "requester": { "id": 1, "name": "Jennifer Anderson", "email": "jennifer.anderson@toktickit.com" },
           "owner": { "id": 5, "name": "Michael Brown" },
-          "requesterResolvedIndicator": false,
+          "requesterResolvedIndicator": true,
           "updatedAt": "2026-09-17T11:00:00.000Z"
         }
       ],
@@ -341,22 +376,31 @@ Advances or transitions the ticket to a new permitted status according to the St
 - **Request Body:**
   ```json
   {
-    "status": "IN_PROGRESS",
-    "resolutionSummary": "Optional resolution note when closing or resolving"
+    "status": "RESOLVED",
+    "resolutionSummary": "Replaced internal battery unit and updated power management firmware."
   }
   ```
-- **Validation:**
-  - Transition must be permitted by the transition matrix (BR-13).
+- **Validation Rules & Parameters:**
+  - `status`: Required. Must be one of the permitted next statuses from the current status (BR-13).
+  - `resolutionSummary`: Required (min 5 characters) if transitioning to `RESOLVED` or `CLOSED`.
+  - `reopenReason`: Required (min 5 characters) if transitioning from `RESOLVED` to `REOPENED`.
 - **Responses:**
   - `200 OK`:
     ```json
     {
       "id": 10,
-      "currentStatus": "IN_PROGRESS",
+      "currentStatus": "RESOLVED",
+      "resolutionSummary": "Replaced internal battery unit and updated power management firmware.",
       "updatedAt": "2026-09-17T11:30:00.000Z"
     }
     ```
-  - `400 Bad Request`: Invalid transition (e.g. attempting to move directly from `NEW` to `RESOLVED`).
+  - `400 Bad Request`:
+    ```json
+    {
+      "error": "INVALID_STATUS_TRANSITION",
+      "message": "Cannot transition ticket from 'NEW' to 'RESOLVED'. Permitted transitions: ['OPEN', 'IN_PROGRESS', 'CANCELLED']."
+    }
+    ```
 
 ---
 
@@ -440,11 +484,11 @@ Creates an Internal Note on the ticket. **Strictly restricted to IT Staff and Ad
 All endpoints in this section strictly require role `ADMINISTRATOR`.
 
 ### GET /api/admin/users
-Lists users in the system with optional search and role filtering.
+Lists users in the system with search and role filtering (FR-22, AC-16).
 
 - **Query Parameters:**
-  - `search`: string (matches name or email case-insensitively)
-  - `role`: `REQUESTER` | `IT_STAFF` | `ADMINISTRATOR`
+  - `search`: string (matches name or email case-insensitively, e.g. `?search=jennifer`)
+  - `role`: `REQUESTER` | `IT_STAFF` | `ADMINISTRATOR` (e.g. `?role=IT_STAFF`)
 - **Responses:**
   - `200 OK`:
     ```json
@@ -462,7 +506,7 @@ Lists users in the system with optional search and role filtering.
     ```
 
 ### POST /api/admin/users
-Creates a new user account with an initial password.
+Creates a new user account with an initial password (FR-23, AC-10).
 
 - **Request Body:**
   ```json
@@ -478,35 +522,33 @@ Creates a new user account with an initial password.
   - `name`: Required, 2–100 chars.
   - `email`: Required, valid email format, must be unique across all users.
   - `role`: Exactly one of `REQUESTER`, `IT_STAFF`, `ADMINISTRATOR`.
-  - `initialPassword`: Required, min 8 chars with complexity requirements.
+  - `initialPassword`: Required, min 8 chars with complexity requirements (BR-07).
 - **Responses:**
   - `201 Created`: Returns user record with `mustChangePassword: true`. Password hash is excluded from response.
-  - `409 Conflict`: Email already exists in the system.
+  - `409 Conflict`: Email already exists in the system (`"EMAIL_ALREADY_EXISTS"`).
   - `400 Bad Request`: Validation failure.
 
 ### PATCH /api/admin/users/:id
-Updates user account attributes (name, email, role, activation state).
+Updates user account attributes (name, email, role, activation state) (FR-24, AC-17).
 
 - **Request Body:**
   ```json
   {
     "name": "Alex Thompson Jr.",
-    "email": "alex.thompson@toktickit.com",
+    "email": "alex.thompson.jr@toktickit.com",
     "role": "IT_STAFF",
     "isActive": false
   }
   ```
-- **Safety Validations:**
-  - Cannot deactivate self (`id === req.user.id`).
-  - Cannot deactivate or demote the last remaining active Administrator.
-  - Email uniqueness check if email is modified.
+- **Safety Validations & Responses:**
+  - Cannot deactivate self (`id === req.user.id`) → `400 Bad Request` (`"SELF_DEACTIVATION_PROHIBITED"`).
+  - Cannot deactivate or alter the role of the last remaining active Administrator → `400 Bad Request` (`"LAST_ADMIN_PROTECTION"`).
+  - Email uniqueness check if email is modified → `409 Conflict` (`"EMAIL_ALREADY_EXISTS"`).
 - **Responses:**
   - `200 OK`: Returns updated user object.
-  - `400 Bad Request`: Attempted self-deactivation or last active admin deactivation/demotion.
-  - `409 Conflict`: New email is already in use.
 
 ### POST /api/admin/users/:id/reset-password
-Issues a new initial password for a user.
+Issues a new initial password for a user (FR-25, BR-09).
 
 - **Request Body:**
   ```json
@@ -515,7 +557,7 @@ Issues a new initial password for a user.
   }
   ```
 - **Validation:**
-  - Password complexity rules apply.
+  - Password complexity rules apply (BR-07).
 - **Responses:**
   - `200 OK`: Password hash updated, `mustChangePassword` set to `true`.
     ```json

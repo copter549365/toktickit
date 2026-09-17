@@ -1,6 +1,6 @@
 # Lab 3 Zen Green UI Specification
 
-This specification defines the visual hierarchy, component states, layout behaviors, and responsive requirements for the TokTickIT Lab 3 increment. All screens must extend the established Zen Green design system.
+This specification defines the visual hierarchy, component states, layout behaviors, accessibility rules, and responsive requirements for the TokTickIT Lab 3 increment. All screens must extend the established Zen Green design system.
 
 ---
 
@@ -20,6 +20,7 @@ This specification defines the visual hierarchy, component states, layout behavi
 | Read-only Field BG | `--color-field-readonly-bg`| `#F1F0E8` | Warm ivory read-only field fill, clearly distinguished from editable fields |
 | Error / Danger | `--color-error` | `#8A1F1F` | Form validation errors, destructive buttons, critical alerts |
 | Warning / Amber | `--color-warning` | `#B36B00` | Warning callouts, **Internal Notes distinct framing & warning badges** |
+| Warning Pale BG | `--color-warning-pale` | `#FFFBEB` | Internal Notes panel background |
 | Success | `--color-success` | `#0B7A46` | Success confirmations, toast notices |
 
 ---
@@ -30,7 +31,7 @@ This specification defines the visual hierarchy, component states, layout behavi
 - **Base Spacing:** 8px grid system. Form elements use 16px vertical gap; card sections use 24px margins.
 - **Elevation / Shadows:**
   - Card shadow: `0 1px 3px rgba(0, 107, 60, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)`.
-  - Modal shadow: `0 10px 25px rgba(0, 0, 0, 0.15)`.
+  - Modal / Drawer shadow: `0 10px 25px rgba(0, 0, 0, 0.15)`.
 
 ---
 
@@ -67,8 +68,8 @@ This specification defines the visual hierarchy, component states, layout behavi
 ## 4. Component Patterns & Field States
 
 ### 4.1. Input Fields
-- **Editable:** White background, 1px `#CBD5D1` border, 6px border radius. On focus: 2px `--color-secondary` outline with zero offset.
-- **Read-only:** Shaded with `--color-field-readonly-bg` (`#F1F0E8`), cursor default, clear non-editable appearance.
+- **Editable:** White background (`--color-field-editable-bg`), 1px `#CBD5D1` border, 6px border radius. On focus: 2px `--color-secondary` outline with zero offset.
+- **Read-only:** Shaded with `--color-field-readonly-bg` (`#F1F0E8`), `aria-readonly="true"`, cursor default, clear non-editable appearance.
 - **Invalid Field:** 1.5px `--color-error` border. Error text rendered immediately below the input with `role="alert"`.
 
 ### 4.2. Buttons
@@ -83,12 +84,12 @@ This specification defines the visual hierarchy, component states, layout behavi
 ### 5.1. Login Screen
 - **Structure:** Centered card (max width 420px) on quiet `--color-bg`.
 - **Elements:**
-  - TokTickIT brand logo and tagline.
+  - TokTickIT brand logo and subtitle.
   - "Sign in to your account" heading.
-  - Email field (with email validation).
+  - Email field with validation.
   - Password field with show/hide password toggle.
-  - "Sign In" button (displays spinner when authenticating).
-  - Failure alert: Generic safe message ("Invalid email or password" or "Account has been deactivated").
+  - "Sign In" button (displays busy spinner when authenticating).
+  - Safe error alerts ("Invalid email or password" or "Account has been deactivated").
 
 ### 5.2. Mandatory First-Login Password Change Screen
 - **Structure:** Centered card (max width 480px).
@@ -115,9 +116,10 @@ This specification defines the visual hierarchy, component states, layout behavi
 ### 5.4. Requester Ticket Detail (Regression & Public Comments)
 - All Lab 2 ticket overview cards, read-only metadata, and attachment management remain fully functional.
 - **New Features:**
-  - **"Problem Appears Resolved" Action:** Prominent button at the top header of active tickets allowing Requester to indicate problem is fixed without formally modifying ticket status to Closed.
-  - **Public Comments Thread:** Clean timeline of comments beneath ticket details with avatar badge, author name, timestamp, and message bubble. Includes an "Add Comment" textarea with character counter (max 2,000 chars) and "Post Comment" button.
-  - **Internal Notes:** Strictly hidden.
+  - **"Problem Appears Resolved" Action:** Visible for active tickets in `IN_PROGRESS` or `WAITING_FOR_REQUESTER` allowing Requester to indicate problem is fixed without modifying formal status.
+  - **"Cancel Ticket" Action:** Visible only when ticket is in `NEW` status, opening a confirmation dialog before cancelling.
+  - **Public Comments Thread:** Clean timeline beneath ticket details with avatar badge, author name, timestamp, and message bubble. Includes an "Add Comment" textarea with character counter (max 2,000 chars) and "Post Comment" button.
+  - **Internal Notes:** Strictly hidden from Requester view.
 
 ### 5.5. IT Staff Ticket Queue Screen
 - **Header:** "IT Staff Ticket Queue" with quick summary count ("Showing X of Y tickets").
@@ -134,7 +136,7 @@ This specification defines the visual hierarchy, component states, layout behavi
   - Row click or "Open" button navigates to IT Staff Ticket Detail.
 - **Pagination Footer:** Previous / Page numbers / Next buttons, page size selector.
 - **Empty / No-Results States:**
-  - When queue is empty: Friendly graphic + "No tickets in queue".
+  - When queue is empty: Friendly icon + "No tickets in queue".
   - When filter has no matches: "No tickets match your filters" + "Reset Filters" action.
 
 ### 5.6. IT Staff Ticket Detail Screen
@@ -142,7 +144,7 @@ This specification defines the visual hierarchy, component states, layout behavi
 - **Operational Editing Panel:**
   - **Ticket Owner Control:** Dropdown of active IT Staff and Admins, plus "Claim Ticket" quick action button.
   - **IT Priority Control:** Editable dropdown (`LOW`, `MEDIUM`, `HIGH`).
-  - **Status Workflow Control:** Dropdown displaying only permitted next statuses based on current status (BR-13), plus Save Status button.
+  - **Status Workflow Control:** Dropdown displaying only permitted next statuses based on current status (BR-13), plus Save Status button with confirmation modal when transitioning to `RESOLVED`, `CLOSED`, `REOPENED`, or `CANCELLED`.
 - **Requester Resolution Banner:** Visible if `requesterResolvedIndicator === true` ("Requester has indicated this issue appears resolved. Review and proceed with formal resolution if verified.").
 - **Communication Tabs / Sections (CRITICAL DISTINCTION):**
   - **Public Comments Tab:** Standard Zen Green styling. Comments are visible to the Requester. Helper notice: "Comments posted here are visible to the Requester."
@@ -160,7 +162,7 @@ This specification defines the visual hierarchy, component states, layout behavi
   - Full Name input (required).
   - Email Address input (required, validated format).
   - Role selector (`Requester`, `IT Staff`, `Administrator`).
-  - Initial Password input (auto-generates a compliant temporary password with option to customize).
+  - Initial Password input (auto-generates compliant temporary password with option to customize).
   - Helper text: "User will be required to change their password on first login."
   - "Save User" and "Cancel" buttons.
 - **Edit User Drawer / Modal:**
@@ -175,20 +177,80 @@ This specification defines the visual hierarchy, component states, layout behavi
 ## 6. Responsive Layout Breakpoints
 
 - **Desktop (≥ 992px):** Full multi-column data tables, side-by-side operational panels, top navbar tabs.
-- **Tablet (768px – 991px):** Compact tables with horizontal scroll if needed, stacked operational cards, collapsible filter drawer.
+- **Tablet (768px – 991px):** Two-column layout where practical; compact tables with horizontal scroll if needed, stacked operational cards.
 - **Mobile (< 768px):**
   - Queue converts from table to stacked card items showing Ticket No, Status, Summary, Priority, and Owner.
   - Form inputs stack vertically (100% width).
   - Sticky action buttons at bottom of ticket detail.
-  - Navigation converts to hamburger drawer or bottom bar.
+  - Navigation converts to mobile drawer or bottom bar.
   - No horizontal scrolling on the page body.
 
 ---
 
-## 7. Visual Checklist & Screenshot Artifact Directory
+## 7. Accessibility (Handout §8.7 — Same as Lab 2)
 
-All visual verification screenshots must be saved in `artifacts/lab-03/screenshots/` according to the required submission structure:
-- `artifacts/lab-03/screenshots/authentication/` (login, invalid-login, inactive-account, first-login-password-change)
-- `artifacts/lab-03/screenshots/staff-queue/` (queue-desktop, queue-tablet, queue-mobile, queue-filtered, queue-no-results)
-- `artifacts/lab-03/screenshots/staff-ticket-detail/` (ticket-detail-view, claim-reassign, status-transitions, public-comments, internal-notes-amber-styling)
-- `artifacts/lab-03/screenshots/user-management/` (admin-user-list, create-user-modal, edit-user-modal, self-deactivation-blocked)
+- **Keyboard Navigation:** All interactive controls (buttons, links, inputs, selects, tabs, modals) are fully reachable via keyboard in a logical tab order. Focus is trapped within open modals and drawers.
+- **Focus Rings:** Visible focus ring (`2px solid --color-secondary` with zero offset) present on every interactive element at all viewports. Never suppressed via `outline: none` without replacement.
+- **Screen Reader Announcements:** Dynamic error messages and alerts utilize `role="alert"` so assistive technologies announce them immediately upon submission failures.
+- **Accessible Names:** Every icon-only button (such as password visibility toggle, close buttons, modal dismiss) possesses an explicit `aria-label` and visual tooltip.
+- **Form Association:** Every input, select, and textarea is explicitly linked to its visual label via programmatic attributes (`htmlFor` / `id`).
+- **Color Independence:** Color is never used as the sole conveyor of status, priority, or role. Badges pair curated background colors with high-contrast text labels and distinct semantic indicators.
+- **Contrast Ratios:** All body text meets or exceeds WCAG AA contrast ratio of 4.5:1 against its background.
+
+---
+
+## 8. Visual Inspection Checklist (per Screen, per Viewport)
+
+This checklist is verified during Issue 8 visual inspection across Desktop (1280px), Tablet (768px), and Mobile (375px):
+
+| Checklist Category | Verification Item | Inspection Criteria |
+|---|---|---|
+| **Design Consistency** | Zen Green Tokens | All surfaces, buttons, text, and borders adhere to the Zen Green token palette (§1) |
+| **Role Navigation** | Strict Nav Segregation | Authenticated user sees only their permitted navigation links (Requester, Staff, Admin) |
+| **Badges Fidelity** | Badges Specification | Status, Priority, and Role badges match exact color tokens, text contrast, and border styles (§3) |
+| **Field Semantics** | Editable vs Read-only | Read-only fields shaded warm ivory (`#F1F0E8`); editable fields render crisp white with focus outline |
+| **Comments vs Notes**| Visual Disambiguation | Internal Notes render with distinct warning amber border (`#B36B00`) and lock banner; never confused with Public Comments |
+| **Validation Placement**| Inline Error Rendering | Error text rendered directly beneath invalid field with `role="alert"` and red border; not just top banner |
+| **Focus Indication** | Keyboard Accessibility | Focus outlines clearly visible on all inputs, tabs, and buttons without clipping |
+| **Layout Integrity** | Clipping & Overlap | No clipped labels, button text, badges, or overlapping UI components across viewports |
+| **Responsive Purity** | No Horizontal Overflow | Zero unintended horizontal scrolling on the page body (`document.body.scrollWidth === window.innerWidth`) |
+| **Feedback States** | Complete State Handling | Loading spinner, empty state graphic, no-results filter state, and safe failure messages rendered correctly |
+
+---
+
+## 9. Screenshot Evidence Paths
+
+Target screenshot artifacts captured during automated Playwright visual suite and manual inspection, stored under `artifacts/lab-03/screenshots/`:
+
+```
+artifacts/lab-03/screenshots/
+├── authentication/
+│   ├── login-desktop.png
+│   ├── login-mobile.png
+│   ├── login-error-safe.png
+│   ├── login-inactive-account.png
+│   ├── first-login-password-change-desktop.png
+│   └── first-login-password-change-validation.png
+├── staff-queue/
+│   ├── queue-desktop-populated.png
+│   ├── queue-tablet.png
+│   ├── queue-mobile-card-view.png
+│   ├── queue-filtered-status-priority.png
+│   ├── queue-empty-state.png
+│   └── queue-no-results-state.png
+├── staff-ticket-detail/
+│   ├── ticket-detail-desktop-overview.png
+│   ├── ticket-detail-claim-and-reassign.png
+│   ├── ticket-detail-status-transition-modal.png
+│   ├── ticket-detail-public-comments.png
+│   ├── ticket-detail-internal-notes-amber-warning.png
+│   └── ticket-detail-requester-resolved-badge.png
+└── user-management/
+    ├── admin-user-list-desktop.png
+    ├── admin-user-list-tablet.png
+    ├── admin-user-list-filtered-role.png
+    ├── admin-create-user-drawer.png
+    ├── admin-edit-user-drawer.png
+    ├── admin-self-deactivation-blocked.png
+    └── admin-reset-initial-password-modal.png
+```
