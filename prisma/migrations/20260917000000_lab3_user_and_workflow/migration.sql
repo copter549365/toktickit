@@ -37,15 +37,17 @@ CREATE INDEX IF NOT EXISTS "User_email_idx" ON "User"("email");
 CREATE INDEX IF NOT EXISTS "User_role_idx"  ON "User"("role");
 
 -- 6. Migrate existing RequesterUser rows into User (idempotent via ON CONFLICT DO NOTHING)
---    Historical requesters get a placeholder hash and mustChangePassword = true so they
---    are forced to set a real password on first Lab 3 login.
+--    Historical requesters receive a real bcrypt hash of the documented known
+--    initial password (see docs/lab-03/specification.md §7.2:
+--    "InitialPassword123!") with mustChangePassword = true, so they can
+--    actually authenticate and are forced to set a new password at first
+--    Lab 3 login. This is the bcrypt (cost 12) hash of that exact string —
+--    verified with bcrypt.compare('InitialPassword123!', hash) === true.
 INSERT INTO "User" ("name", "email", "passwordHash", "role", "isActive", "mustChangePassword", "createdAt", "updatedAt")
 SELECT
     ru."name",
     ru."email",
-    -- Placeholder hash — seed.ts will overwrite real accounts;
-    -- any row not overwritten will be forced to reset on login.
-    '$2b$12$PLACEHOLDER_MIGRATE_HASH_CHANGEME_XXXXXXXXXXXXXXXXX',
+    '$2b$12$NQlyvAvcIrfbzP3oEvqJ8ef6OJ1CzImcTKYgctQnDkl3E.3wh/5Di',
     'REQUESTER'::"UserRole",
     ru."isActive",
     true,
@@ -67,7 +69,7 @@ INSERT INTO "User" ("name", "email", "passwordHash", "role", "isActive", "mustCh
 SELECT DISTINCT
     ru."name",
     ru."email",
-    '$2b$12$PLACEHOLDER_MIGRATE_HASH_CHANGEME_XXXXXXXXXXXXXXXXX',
+    '$2b$12$NQlyvAvcIrfbzP3oEvqJ8ef6OJ1CzImcTKYgctQnDkl3E.3wh/5Di',
     'REQUESTER'::"UserRole",
     ru."isActive",
     true,
@@ -89,6 +91,13 @@ WHERE t."requesterId" = ru."id"
 ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_requesterId_fkey"
     FOREIGN KEY ("requesterId") REFERENCES "User"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Step E: backfill IT Priority on pre-existing (Lab 2) tickets. Per BR-11 /
+-- handout.md §4.5, IT Priority initially copies Requested Priority; Lab 2
+-- tickets predate the itPriority column being populated at creation time.
+UPDATE "Ticket"
+SET "itPriority" = "requestedPriority"
+WHERE "itPriority" IS NULL;
 
 -- 8. Add ticketOwner FK (Lab 2 had the column but no FK)
 DO $$ BEGIN

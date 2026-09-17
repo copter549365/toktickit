@@ -49,11 +49,15 @@ export async function verifyRequesterContext(
   }
 
   try {
-    const requester = await prisma.requesterUser.findUnique({
+    // Lab 3 note: RequesterUser was migrated into the unified User model
+    // (see docs/lab-03/handout.md §5). This scopes back to REQUESTER role
+    // as a temporary compatibility shim for the Lab 2 dev-selector flow;
+    // Issue 3/4 replace this middleware with real session authentication.
+    const requester = await prisma.user.findUnique({
       where: { id: requesterId },
     });
 
-    if (!requester || !requester.isActive) {
+    if (!requester || !requester.isActive || requester.role !== 'REQUESTER') {
       res.status(401).json({ error: 'INVALID_REQUESTER_CONTEXT' });
       return;
     }
@@ -112,8 +116,9 @@ app.get('/api/related-systems', async (_req, res) => {
 // Active Development Requesters Endpoint (api-spec.md §1 "GET /api/requesters")
 app.get('/api/requesters', async (_req, res) => {
   try {
-    const requesters = await prisma.requesterUser.findMany({
-      where: { isActive: true },
+    // Lab 3 compatibility shim — see verifyRequesterContext above.
+    const requesters = await prisma.user.findMany({
+      where: { isActive: true, role: 'REQUESTER' },
       orderBy: { id: 'asc' },
       select: {
         id: true,

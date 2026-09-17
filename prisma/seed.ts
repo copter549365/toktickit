@@ -124,7 +124,7 @@ async function main() {
 
   const ticketDefs = [
     {
-      ticketNumber:      'TK-2026-0001',
+      ticketNumber:      'TKT-2026-000001',
       requesterId:       jenniferID,
       categoryName:      'Account and Access',
       systemName:        'Email',
@@ -136,7 +136,7 @@ async function main() {
       ticketOwnerId:     michaelID,
     },
     {
-      ticketNumber:      'TK-2026-0002',
+      ticketNumber:      'TKT-2026-000002',
       requesterId:       davidID,
       categoryName:      'Network',
       systemName:        'Campus Wi-Fi',
@@ -148,19 +148,21 @@ async function main() {
       ticketOwnerId:     alexID,
     },
     {
-      ticketNumber:      'TK-2026-0003',
+      ticketNumber:      'TKT-2026-000003',
       requesterId:       sarahID,
       categoryName:      'Software',
       systemName:        'LEB2 App',
       summary:           'LEB2 app crashes when submitting assignment',
       description:       'Every time I try to upload a PDF assignment on LEB2 the app crashes with a white screen.',
+      // BR-11: itPriority is initialized to requestedPriority at creation,
+      // regardless of whether the ticket has been claimed yet.
       requestedPriority: 'HIGH'   as const,
-      itPriority:        null,
+      itPriority:        'HIGH'   as const,
       currentStatus:     'NEW'    as const,
       ticketOwnerId:     null,
     },
     {
-      ticketNumber:      'TK-2026-0004',
+      ticketNumber:      'TKT-2026-000004',
       requesterId:       emilyID,
       categoryName:      'Hardware',
       systemName:        'Corporate Laptop',
@@ -172,7 +174,7 @@ async function main() {
       ticketOwnerId:     lisaID,
     },
     {
-      ticketNumber:      'TK-2026-0005',
+      ticketNumber:      'TKT-2026-000005',
       requesterId:       jenniferID,
       categoryName:      'Network',
       systemName:        'VPN',
@@ -185,7 +187,7 @@ async function main() {
       requesterResolvedIndicator: true,
     },
     {
-      ticketNumber:      'TK-2026-0006',
+      ticketNumber:      'TKT-2026-000006',
       requesterId:       davidID,
       categoryName:      'Software',
       systemName:        'Grade Submission App',
@@ -198,19 +200,20 @@ async function main() {
       requesterResolvedIndicator: true,
     },
     {
-      ticketNumber:      'TK-2026-0007',
+      ticketNumber:      'TKT-2026-000007',
       requesterId:       sarahID,
       categoryName:      'Account and Access',
       systemName:        'VPN',
       summary:           'VPN account expired — unable to renew online',
       description:       'My VPN account expired last week. The self-service renewal portal is returning a permissions error.',
+      // BR-11: itPriority is initialized to requestedPriority at creation.
       requestedPriority: 'MEDIUM' as const,
-      itPriority:        null,
+      itPriority:        'MEDIUM' as const,
       currentStatus:     'NEW'    as const,
       ticketOwnerId:     null,
     },
     {
-      ticketNumber:      'TK-2026-0008',
+      ticketNumber:      'TKT-2026-000008',
       requesterId:       emilyID,
       categoryName:      'Hardware',
       systemName:        'Printer',
@@ -245,32 +248,32 @@ async function main() {
   type CommentDef = { ticketNumber: string; authorId: number; content: string };
   const commentDefs: CommentDef[] = [
     {
-      ticketNumber: 'TK-2026-0001',
+      ticketNumber: 'TKT-2026-000001',
       authorId:     michaelID,
       content:      'Hi Jennifer, I have reset your email account authentication token. Please try logging in again and let me know if the issue persists.',
     },
     {
-      ticketNumber: 'TK-2026-0001',
+      ticketNumber: 'TKT-2026-000001',
       authorId:     jenniferID,
       content:      'Thank you Michael! I can now access my email again.',
     },
     {
-      ticketNumber: 'TK-2026-0002',
+      ticketNumber: 'TKT-2026-000002',
       authorId:     alexID,
       content:      "David, we've identified a misconfigured access point on that floor. A technician will be on-site within 2 hours.",
     },
     {
-      ticketNumber: 'TK-2026-0004',
+      ticketNumber: 'TKT-2026-000004',
       authorId:     lisaID,
       content:      'Emily, could you confirm whether the issue started after a software update or physical damage?',
     },
     {
-      ticketNumber: 'TK-2026-0005',
+      ticketNumber: 'TKT-2026-000005',
       authorId:     michaelID,
-      content:      'Sarah, the VPN configuration update has been pushed. Please reconnect and let us know if it is now working.',
+      content:      'Jennifer, the VPN configuration update has been pushed. Please reconnect and let us know if it is now working.',
     },
     {
-      ticketNumber: 'TK-2026-0005',
+      ticketNumber: 'TKT-2026-000005',
       authorId:     jenniferID,
       content:      'Confirmed — VPN is now working from home. Thank you!',
     },
@@ -279,6 +282,16 @@ async function main() {
   for (const c of commentDefs) {
     const ticketId = ticketMap.get(c.ticketNumber);
     if (!ticketId) continue;
+    // No natural unique key on PublicComment — guard idempotency with an
+    // existence check instead (findFirst + skip) so re-running the seed
+    // never duplicates append-only comment rows.
+    const existing = await prisma.publicComment.findFirst({
+      where: { ticketId, authorId: c.authorId, content: c.content },
+    });
+    if (existing) {
+      console.log(`  • PublicComment on ${c.ticketNumber} by authorId=${c.authorId} already exists, skipping`);
+      continue;
+    }
     await prisma.publicComment.create({
       data: { ticketId, authorId: c.authorId, content: c.content },
     });
@@ -290,22 +303,22 @@ async function main() {
   type NoteDef = { ticketNumber: string; authorId: number; content: string };
   const noteDefs: NoteDef[] = [
     {
-      ticketNumber: 'TK-2026-0001',
+      ticketNumber: 'TKT-2026-000001',
       authorId:     michaelID,
       content:      'Root cause: OAuth token corruption in the identity store. Applied hot-fix on auth server v2.4.1.',
     },
     {
-      ticketNumber: 'TK-2026-0002',
+      ticketNumber: 'TKT-2026-000002',
       authorId:     alexID,
       content:      "AP firmware is three versions behind. Scheduled maintenance window for tonight 22:00–23:00.",
     },
     {
-      ticketNumber: 'TK-2026-0006',
+      ticketNumber: 'TKT-2026-000006',
       authorId:     alexID,
       content:      'Bug was in the grade-submission service v3.1.0. Hotfix deployed at 14:30. Monitoring for 48 h before closing.',
     },
     {
-      ticketNumber: 'TK-2026-0008',
+      ticketNumber: 'TKT-2026-000008',
       authorId:     lisaID,
       content:      'First attempt: replaced toner — still offline. Second visit needed: suspect driver corruption.',
     },
@@ -314,6 +327,14 @@ async function main() {
   for (const n of noteDefs) {
     const ticketId = ticketMap.get(n.ticketNumber);
     if (!ticketId) continue;
+    // Same idempotency guard as Public Comments — see above.
+    const existing = await prisma.internalNote.findFirst({
+      where: { ticketId, authorId: n.authorId, content: n.content },
+    });
+    if (existing) {
+      console.log(`  • InternalNote on ${n.ticketNumber} by authorId=${n.authorId} already exists, skipping`);
+      continue;
+    }
     await prisma.internalNote.create({
       data: { ticketId, authorId: n.authorId, content: n.content },
     });
