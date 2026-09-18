@@ -173,6 +173,42 @@ body {
   color: var(--color-secondary);
 }
 
+/* Lab 3 addition — remaining Ticket Status values (docs/lab-03/ui-spec.md §3.3) */
+.badge-status-open {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.badge-status-in-progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge-status-waiting {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.badge-status-resolved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-status-closed {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badge-status-reopened {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.badge-status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .badge-triage-pending {
   background: #e8e8e8;
   color: #4b4b4b;

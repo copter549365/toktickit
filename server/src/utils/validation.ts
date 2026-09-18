@@ -54,6 +54,23 @@ export function validateRemovalReason(
   return { isValid: true, trimmed };
 }
 
+// BR-15: Public Comment / Internal Note content — trimmed, non-empty, max 2000 chars.
+export function validateCommentContent(
+  content: unknown,
+): { isValid: boolean; error?: string; trimmed?: string } {
+  if (typeof content !== 'string') {
+    return { isValid: false, error: 'Content is required.' };
+  }
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return { isValid: false, error: 'Content is required.' };
+  }
+  if (trimmed.length > 2000) {
+    return { isValid: false, error: 'Content must be 2,000 characters or fewer.' };
+  }
+  return { isValid: true, trimmed };
+}
+
 export function validateTicketInputFields(body: any): ValidationResult & {
   trimmedSummary?: string;
   trimmedDescription?: string;

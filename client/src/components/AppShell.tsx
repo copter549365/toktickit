@@ -2,7 +2,6 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Badge } from './Badge';
-import { RequesterSync } from './RequesterSync';
 
 /** Application shell: brand, role-based nav, authenticated identity (ui-spec.md §5.3). */
 export function AppShell() {
@@ -19,7 +18,6 @@ export function AppShell() {
 
   return (
     <div className="min-vh-100 d-flex flex-column" style={{ background: 'var(--color-bg)' }}>
-      <RequesterSync />
       <header className="zg-shell-header">
         <nav className="navbar navbar-dark navbar-expand-md">
           <div className="container-fluid" style={{ maxWidth: 1140 }}>

@@ -1,6 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { RequesterProvider } from './context/RequesterContext';
 import { RequireAuth } from './components/RequireAuth';
 import { AppShell } from './components/AppShell';
 import { Login } from './screens/Login';
@@ -38,21 +37,19 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <RequesterProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/change-password" element={<ChangePassword />} />
-            <Route element={<RequireAuth />}>
-              <Route element={<AppShell />}>
-                <Route index element={<AuthenticatedHome />} />
-                <Route path="tickets" element={<MyTickets />} />
-                <Route path="tickets/new" element={<CreateTicket />} />
-                <Route path="tickets/:id" element={<RequesterTicketDetail />} />
-              </Route>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+          <Route element={<RequireAuth />}>
+            <Route element={<AppShell />}>
+              <Route index element={<AuthenticatedHome />} />
+              <Route path="tickets" element={<MyTickets />} />
+              <Route path="tickets/new" element={<CreateTicket />} />
+              <Route path="tickets/:id" element={<RequesterTicketDetail />} />
             </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </RequesterProvider>
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </AuthProvider>
     </BrowserRouter>
   );

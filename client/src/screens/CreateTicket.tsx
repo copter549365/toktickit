@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useRequester } from '../context/RequesterContext';
+import { useAuth } from '../context/AuthContext';
 import { fetchCategories } from '../api/categories';
 import { fetchActiveRelatedSystems } from '../api/relatedSystems';
 import { createTicket, uploadTicketAttachment, ApiError } from '../api/tickets';
@@ -14,7 +14,7 @@ import type { Priority, Ticket } from '../types/ticket';
 import { formatBytes, validateAttachmentFile } from '../utils/attachmentValidation';
 
 export function CreateTicket() {
-  const { requester } = useRequester();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Reference data loading state
@@ -146,16 +146,11 @@ export function CreateTicket() {
       return;
     }
 
-    if (!requester) {
-      navigate('/select-requester', { replace: true });
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
       // 1. Create Ticket row
-      const ticket = await createTicket(requester.id, {
+      const ticket = await createTicket({
         categoryId: Number(categoryId),
         relatedSystemId: Number(relatedSystemId),
         summary: summary.trim(),
@@ -167,7 +162,7 @@ export function CreateTicket() {
       const failed: string[] = [];
       for (const file of pendingFiles) {
         try {
-          await uploadTicketAttachment(requester.id, ticket.id, file);
+          await uploadTicketAttachment(ticket.id, file);
         } catch {
           failed.push(file.name);
         }
@@ -345,7 +340,7 @@ export function CreateTicket() {
                       id="requester-name-readonly"
                       type="text"
                       className="form-control field-readonly"
-                      value={requester?.name || ''}
+                      value={user?.name || ''}
                       readOnly
                       aria-readonly="true"
                     />

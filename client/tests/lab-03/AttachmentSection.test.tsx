@@ -32,7 +32,7 @@ function removedAttachment(overrides: Partial<Attachment> = {}): Attachment {
   };
 }
 
-describe('UI-12..UI-14: AttachmentSection', () => {
+describe('UI-12..UI-14: AttachmentSection (session-authenticated, no requesterId prop)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -41,19 +41,16 @@ describe('UI-12..UI-14: AttachmentSection', () => {
   it('UI-12: adding a valid file to a ticket with <5 active attachments shows it as active immediately after success', async () => {
     const newAttachment = activeAttachment({ id: 3, originalFileName: 'new-photo.jpg', mimeType: 'image/jpeg' });
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => newAttachment,
-      } as Response),
-    );
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => newAttachment,
+    } as Response);
+    vi.stubGlobal('fetch', fetchSpy);
 
     const onAttachmentAdded = vi.fn();
 
     render(
       <AttachmentSection
-        requesterId={1}
         ticketId={101}
         attachments={[]}
         onAttachmentAdded={onAttachmentAdded}
@@ -68,6 +65,12 @@ describe('UI-12..UI-14: AttachmentSection', () => {
     await waitFor(() => {
       expect(onAttachmentAdded).toHaveBeenCalledWith(newAttachment);
     });
+
+    // credentials: 'include' carries the session cookie now that x-requester-id is gone.
+    const [, requestInit] = fetchSpy.mock.calls[0];
+    expect(requestInit.credentials).toBe('include');
+    expect(requestInit.headers['X-Requested-With']).toBe('XMLHttpRequest');
+    expect(requestInit.headers['x-requester-id']).toBeUndefined();
   });
 
   it('UI-13: soft-remove flow requires a reason before Confirm is enabled, then calls DELETE with the reason', async () => {
@@ -84,7 +87,6 @@ describe('UI-12..UI-14: AttachmentSection', () => {
 
     render(
       <AttachmentSection
-        requesterId={1}
         ticketId={101}
         attachments={[attachment]}
         onAttachmentAdded={vi.fn()}
@@ -112,6 +114,7 @@ describe('UI-12..UI-14: AttachmentSection', () => {
 
     const [, requestInit] = fetchSpy.mock.calls[0];
     expect(requestInit.method).toBe('DELETE');
+    expect(requestInit.credentials).toBe('include');
     expect(JSON.parse(requestInit.body)).toEqual({ removalReason: 'No longer relevant' });
   });
 
@@ -120,7 +123,6 @@ describe('UI-12..UI-14: AttachmentSection', () => {
 
     render(
       <AttachmentSection
-        requesterId={1}
         ticketId={101}
         attachments={[removed]}
         onAttachmentAdded={vi.fn()}
