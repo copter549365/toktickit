@@ -49,26 +49,26 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **API-22** | API | AC-09, FR-20 | Posting Public Comment as IT Staff / Requester | 201 Created; comment saved with author details | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
 | **API-23** | API | BR-15 | Posting empty or whitespace comment | 400 Bad Request; comment rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
 | **API-24** | API | FR-19 | Posting Internal Note as IT Staff | 201 Created; note saved with author details | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
-| **API-25** | API | AC-14 | Requester or IT Staff accessing Admin user list (`GET /api/admin/users`) | 403 Forbidden; access denied | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-26** | API | AC-10, FR-23 | Administrator creates new user (`POST /api/admin/users`) | 201 Created; user saved with `mustChangePassword=true` and specified role | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-27** | API | AC-11, BR-17 | Administrator creates user with duplicate email | 409 Conflict; duplicate email rejected | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-28** | API | AC-12, BR-18 | Administrator deactivates own account (`PATCH /api/admin/users/:id`) | 400 Bad Request; self-deactivation rejected | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-29** | API | AC-13, BR-19 | Administrator deactivates last remaining active Administrator | 400 Bad Request; last admin protection triggered | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-30** | API | FR-25, BR-09 | Administrator resets user password (`POST /api/admin/users/:id/reset-password`) | 200 OK; password updated; `mustChangePassword` set to true | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
+| **API-25** | API | AC-14 | Requester or IT Staff accessing Admin user list (`GET /api/admin/users`) | 403 Forbidden; access denied | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| **API-26** | API | AC-10, FR-23 | Administrator creates new user (`POST /api/admin/users`) | 201 Created; user saved with `mustChangePassword=true` and specified role | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| **API-27** | API | AC-11, BR-17 | Administrator creates user with duplicate email | 409 Conflict; duplicate email rejected | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| **API-28** | API | AC-12, BR-18 | Administrator deactivates own account (`PATCH /api/admin/users/:id`) | 400 Bad Request; self-deactivation rejected | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| **API-29** | API | AC-13, BR-19 | Administrator deactivates last remaining active Administrator | 400 Bad Request; last admin protection triggered | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| **API-30** | API | FR-25, BR-09 | Administrator resets user password (`POST /api/admin/users/:id/reset-password`) | 200 OK; password updated; `mustChangePassword` set to true | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
 | **API-31** | API | AC-15, FR-13 | Requester marks ticket as appears resolved (`PATCH /api/tickets/:id/resolve-indicator`) | 200 OK; flag set to true; status remains unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass |
-| **API-32** | API | AC-16, FR-22 | Administrator searches users by name/email and filters by role (`GET /api/admin/users`) | 200 OK; returns only matching users | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-33** | API | AC-17, FR-24 | Administrator updates user name, email, role, and active status (`PATCH /api/admin/users/:id`) | 200 OK; changes persisted | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
+| **API-32** | API | AC-16, FR-22 | Administrator searches users by name/email and filters by role (`GET /api/admin/users`) | 200 OK; returns only matching users | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| **API-33** | API | AC-17, FR-24 | Administrator updates user name, email, role, and active status (`PATCH /api/admin/users/:id`) | 200 OK; changes persisted | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
 | **API-34** | API | FR-13.1, BR-13| Requester cancels owned ticket while in `NEW` status (`PATCH /api/tickets/:id/cancel`) | 200 OK; status updated to `CANCELLED`; rejected if ticket is already in progress | `server/tests/lab-03/authorization.api.test.ts` | Pass |
 | **MIGR-01** | Migration | §5.1, §5.2 | Database migration from Lab 2 schema to Lab 3 User model | Lab 2 RequesterUser rows migrated to User; ticket & attachment foreign keys intact | `server/tests/lab-03/migration.test.ts` | Pass |
 | **MIGR-02** | Migration | BR-02, BR-09 | Migrated Requester authenticates with initial password | 200 OK; `mustChangePassword=true` returned; app access blocked until password changed | `server/tests/lab-03/migration.test.ts` | Pass |
 | **REGR-01** | Regression| FR-10, FR-11 | Lab 2 Requester flows (Create, My Tickets, Detail, Attachments) under real auth | Full ticket creation, listing, attachment upload/download/soft-delete functions pass | `server/tests/lab-03/requester-regression.test.ts` | Pass |
 | **UI-01** | Component | AC-01 | Login form validation, busy state spinner, and safe error rendering | Renders email/password errors; displays spinner when in flight | `client/tests/lab-03/Login.test.tsx` | Pass |
 | **UI-02** | Component | AC-02 | Change Password form rules checklist and validation | Checks mark active as rules are satisfied; confirms match | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
-| **UI-03** | Component | FR-08, FR-09 | App shell renders user name, role badge, and role-permitted navigation | Shows Staff navigation for staff, Admin navigation for admin | `client/tests/lab-03/AppShell.test.tsx` | Pass (Requester/IT Staff nav; Admin nav lands in Issue 7) |
+| **UI-03** | Component | FR-08, FR-09 | App shell renders user name, role badge, and role-permitted navigation | Shows Staff navigation for staff, Admin navigation for admin | `client/tests/lab-03/AppShell.test.tsx` | Pass |
 | **UI-04** | Component | AC-05, FR-15 | Staff Ticket Queue table, filter controls, pagination, and sorting | Correctly handles filter changes, sort toggles, and empty/no-results states | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass |
 | **UI-05** | Component | AC-06, AC-07 | Staff Ticket Detail operational controls (Owner, IT Priority, Status) | Shows only permitted status transitions; updates priority and owner | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Pass |
 | **UI-06** | Component | BR-04, BR-05 | Public Comments vs. Internal Notes visual styling distinction | Internal Notes render with distinct warning amber border and lock banner | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Pass |
-| **UI-07** | Component | AC-10, AC-12 | Admin User Management user list, create modal, and self-deactivation guard | Self-deactivate toggle is disabled for logged-in admin | `client/tests/lab-03/UserManagement.test.tsx` | Planned |
+| **UI-07** | Component | AC-10, AC-12 | Admin User Management user list, create modal, and self-deactivation guard | Self-deactivate toggle is disabled for logged-in admin | `client/tests/lab-03/UserManagement.test.tsx` | Pass |
 | **STYLE-01**| UI Style | §7, §8 | Zen Green tokens, badge classes, read-only field fill, and amber internal notes styling | Elements have correct CSS tokens, warm ivory `#F1F0E8` for read-only, amber border for notes | `client/tests/lab-03/Styles.test.tsx` | Planned |
 | **RESP-01** | Responsive| §6, §8 | Desktop viewport (≥992px) layout integrity across all screens | Full table view, side-by-side panels, zero horizontal body scroll | `e2e/lab-03/responsive.spec.ts` | Planned |
 | **RESP-02** | Responsive| §6, §8 | Tablet viewport (768–991px) layout integrity across all screens | Two-column flow, collapsible drawers, zero horizontal body scroll | `e2e/lab-03/responsive.spec.ts` | Planned |
@@ -95,10 +95,10 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **AC-08** (Permitted Status Transitions) | `UNIT-02`, `API-20`, `API-21`, `UI-05`, `E2E-03` | Planned |
 | **AC-09** (Public Comments Thread) | `API-22`, `API-23`, `UI-06`, `E2E-04` | Planned |
 | **AC-10** (Admin User Creation) | `API-26`, `UI-07`, `E2E-05` | Planned |
-| **AC-11** (Admin Safety: Duplicate Email) | `API-27` | Planned |
+| **AC-11** (Admin Safety: Duplicate Email) | `API-27` | Pass |
 | **AC-12** (Admin Safety: Self-Deactivation) | `API-28`, `UI-07`, `E2E-05` | Planned |
-| **AC-13** (Admin Safety: Last Admin Protection) | `API-29` | Planned |
-| **AC-14** (Admin API Authorization) | `API-25` | Planned |
+| **AC-13** (Admin Safety: Last Admin Protection) | `API-29` | Pass |
+| **AC-14** (Admin API Authorization) | `API-25` | Pass |
 | **AC-15** (Problem Appears Resolved Indicator) | `API-31`, `UI-05` | Planned |
-| **AC-16** (Admin User Search & Filter) | `API-32`, `UI-07` | Planned |
-| **AC-17** (Admin User Update) | `API-33`, `UI-07` | Planned |
+| **AC-16** (Admin User Search & Filter) | `API-32`, `UI-07` | Pass |
+| **AC-17** (Admin User Update) | `API-33`, `UI-07` | Pass |

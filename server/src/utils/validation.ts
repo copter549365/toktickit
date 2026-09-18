@@ -3,6 +3,28 @@ export interface ValidationResult {
   fieldErrors: Record<string, string>;
 }
 
+// Administrator User Management (api-spec.md §6): "name" — Required, 2-100 chars.
+export function validateUserName(name: unknown): { isValid: boolean; error?: string; trimmed?: string } {
+  if (typeof name !== 'string') {
+    return { isValid: false, error: 'Name is required.' };
+  }
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { isValid: false, error: 'Name is required.' };
+  }
+  if (trimmed.length < 2 || trimmed.length > 100) {
+    return { isValid: false, error: 'Name must be 2-100 characters.', trimmed };
+  }
+  return { isValid: true, trimmed };
+}
+
+export const USER_ROLES = ['REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'] as const;
+export type UserRoleValue = (typeof USER_ROLES)[number];
+
+export function isValidUserRole(role: unknown): role is UserRoleValue {
+  return typeof role === 'string' && (USER_ROLES as readonly string[]).includes(role);
+}
+
 export function validateSummary(summary: unknown): { isValid: boolean; error?: string; trimmed?: string } {
   if (typeof summary !== 'string') {
     return { isValid: false, error: 'Summary is required.' };

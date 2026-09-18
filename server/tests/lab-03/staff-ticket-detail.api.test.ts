@@ -151,9 +151,9 @@ describe('GET /api/attachments/:id and /download — IT Staff may access any tic
   });
 });
 
-describe('GET /api/staff/members — reference data for the owner reassignment dropdown', () => {
+describe('GET /api/staff/users — reference data for the owner reassignment dropdown', () => {
   it('returns only active IT Staff and Administrators', async () => {
-    const response = await request(app).get('/api/staff/members').set('Cookie', cookieStaff);
+    const response = await request(app).get('/api/staff/users').set('Cookie', cookieStaff);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
@@ -167,7 +167,7 @@ describe('GET /api/staff/members — reference data for the owner reassignment d
   });
 
   it('rejects a Requester with 403', async () => {
-    const response = await request(app).get('/api/staff/members').set('Cookie', cookie);
+    const response = await request(app).get('/api/staff/users').set('Cookie', cookie);
     expect(response.status).toBe(403);
   });
 });

@@ -379,3 +379,15 @@ body {
   border-radius: 4px;
   padding: calc(var(--zg-space-unit) * 1.5) calc(var(--zg-space-unit) * 2);
 }
+
+/* ---- Administrator User Management: account status (docs/lab-03/ui-spec.md §5.7) ---- */
+
+.badge-account-active {
+  background: var(--color-pale);
+  color: var(--color-secondary);
+}
+
+.badge-account-inactive {
+  background: #f3f4f6;
+  color: #4b5563;
+}

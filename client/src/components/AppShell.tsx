@@ -50,6 +50,11 @@ export function AppShell() {
                     Ticket Queue
                   </NavLink>
                 )}
+                {user?.role === 'ADMINISTRATOR' && (
+                  <NavLink to="/admin/users" end className={navLinkClass}>
+                    User Management
+                  </NavLink>
+                )}
               </div>
               <div className="d-flex align-items-center gap-3 mt-3 mt-md-0 text-white">
                 {user && (

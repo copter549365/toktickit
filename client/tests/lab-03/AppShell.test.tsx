@@ -94,6 +94,24 @@ describe('UI-03: App Shell — role display and navigation (FR-08, FR-09)', () =
     expect(screen.queryByRole('link', { name: /My Tickets/i })).not.toBeInTheDocument();
   });
 
+  it('shows the Administrator role badge and User Management navigation', async () => {
+    renderShell({
+      user: {
+        id: 30,
+        name: 'John Smith',
+        email: 'john.smith@toktickit.com',
+        role: 'ADMINISTRATOR',
+        mustChangePassword: false,
+      },
+    });
+
+    await waitFor(() => expect(screen.getByTestId('auth-user-name')).toHaveTextContent('John Smith'));
+    expect(screen.getByText('Administrator')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /User Management/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /My Tickets/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Ticket Queue/i })).not.toBeInTheDocument();
+  });
+
   it('Sign Out logs the user out and returns to /login', async () => {
     const fetchMock = renderShell(
       {

@@ -9,11 +9,11 @@ import { MyTickets } from './screens/MyTickets';
 import { RequesterTicketDetail } from './screens/RequesterTicketDetail';
 import { StaffTicketQueue } from './screens/StaffTicketQueue';
 import { StaffTicketDetail } from './screens/StaffTicketDetail';
+import { UserManagement } from './screens/UserManagement';
 
 /**
  * Role-appropriate landing screen. Requesters continue into the Lab 2 ticket screens, IT Staff
- * land on their Ticket Queue; the Administrator workspace lands in a later Lab 3 issue, so
- * there is intentionally nothing to route them into yet (ui-spec.md §5.3).
+ * land on their Ticket Queue, and Administrators land on User Management (ui-spec.md §5.3, §5.7).
  */
 function AuthenticatedHome() {
   const { user } = useAuth();
@@ -26,14 +26,11 @@ function AuthenticatedHome() {
     return <Navigate to="/staff/tickets" replace />;
   }
 
-  return (
-    <div className="zg-state-panel" role="status">
-      <div className="zg-state-panel__icon" aria-hidden="true">
-        🚧
-      </div>
-      <div className="zg-state-panel__message">Your Administrator workspace is coming in a later increment.</div>
-    </div>
-  );
+  if (user?.role === 'ADMINISTRATOR') {
+    return <Navigate to="/admin/users" replace />;
+  }
+
+  return null;
 }
 
 function App() {
@@ -51,6 +48,7 @@ function App() {
               <Route path="tickets/:id" element={<RequesterTicketDetail />} />
               <Route path="staff/tickets" element={<StaffTicketQueue />} />
               <Route path="staff/tickets/:id" element={<StaffTicketDetail />} />
+              <Route path="admin/users" element={<UserManagement />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

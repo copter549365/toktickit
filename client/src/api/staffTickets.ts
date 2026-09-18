@@ -69,9 +69,9 @@ export async function fetchStaffTicketById(
   return response.json();
 }
 
-/** GET /api/staff/members — active IT Staff/Administrators for the owner dropdown. */
+/** GET /api/staff/users — active IT Staff/Administrators for the owner dropdown. */
 export async function fetchStaffMembers(): Promise<StaffMember[]> {
-  const response = await fetch(`${API_URL}/api/staff/members`, {
+  const response = await fetch(`${API_URL}/api/staff/users`, {
     credentials: 'include',
   });
 

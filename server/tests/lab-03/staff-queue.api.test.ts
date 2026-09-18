@@ -126,9 +126,15 @@ describe('API-12: GET /api/staff/tickets (AC-05, FR-14)', () => {
   });
 
   it('an Administrator may also retrieve the queue', async () => {
-    const admin = await prisma.user.findFirst({ where: { role: 'ADMINISTRATOR', isActive: true } });
-    expect(admin).not.toBeNull();
-    const cookieAdmin = signSessionToken({ userId: admin!.id, email: admin!.email, role: 'ADMINISTRATOR', mustChangePassword: false });
+    // requireRole only reads the JWT's role claim here (this endpoint never looks up the
+    // acting user's own row), so a synthetic admin identity is enough — no need to depend on
+    // whichever admin rows happen to be active in the shared dev database at test time.
+    const cookieAdmin = signSessionToken({
+      userId: 999999,
+      email: 'synthetic-admin@toktickit.com',
+      role: 'ADMINISTRATOR',
+      mustChangePassword: false,
+    });
 
     const response = await request(app)
       .get('/api/staff/tickets')
