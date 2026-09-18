@@ -77,7 +77,7 @@ describe('UI-03: App Shell — role display and navigation (FR-08, FR-09)', () =
     expect(screen.getByText('My Tickets Marker')).toBeInTheDocument();
   });
 
-  it('shows the IT Staff role badge without Requester navigation links', async () => {
+  it('shows the IT Staff role badge, Ticket Queue navigation, and no Requester links', async () => {
     renderShell({
       user: {
         id: 26,
@@ -90,6 +90,7 @@ describe('UI-03: App Shell — role display and navigation (FR-08, FR-09)', () =
 
     await waitFor(() => expect(screen.getByTestId('auth-user-name')).toHaveTextContent('Michael Brown'));
     expect(screen.getByText('IT Staff')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Ticket Queue/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /My Tickets/i })).not.toBeInTheDocument();
   });
 
