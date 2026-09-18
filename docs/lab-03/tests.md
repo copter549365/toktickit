@@ -22,16 +22,16 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| **UNIT-01** | Unit | BR-07, AC-02 | Password complexity validator | Rejects passwords missing uppercase, lowercase, numbers, or symbols; accepts compliant passwords | `server/tests/lab-03/auth.unit.test.ts` | Planned |
+| **UNIT-01** | Unit | BR-07, AC-02 | Password complexity validator | Rejects passwords missing uppercase, lowercase, numbers, or symbols; accepts compliant passwords | `server/tests/lab-03/auth.unit.test.ts` | Pass |
 | **UNIT-02** | Unit | BR-13, AC-08 | Status transition state machine | Permits valid transitions (e.g. `OPEN` → `IN_PROGRESS`); rejects invalid transitions (e.g. `NEW` → `CLOSED`) | `server/tests/lab-03/workflow.unit.test.ts` | Planned |
 | **UNIT-03** | Unit | FR-15, AC-05 | Queue query normalizer & parser | Falls back safely on invalid sort fields, negative pages, or oversized page sizes | `server/tests/lab-03/queue-query.unit.test.ts` | Planned |
-| **API-01** | API | AC-01, FR-01 | Valid user login | 200 OK; sets `toktickit_session` HTTP-only cookie; returns user profile without password hash | `server/tests/lab-03/auth.api.test.ts` | Planned |
-| **API-02** | API | BR-01 | Login with invalid password | 401 Unauthorized; generic error message; no session cookie set | `server/tests/lab-03/auth.api.test.ts` | Planned |
-| **API-03** | API | BR-01 | Login with inactive user account | 401 Unauthorized; safe error message; login blocked | `server/tests/lab-03/auth.api.test.ts` | Planned |
-| **API-04** | API | FR-05 | User logout | 200 OK; clears `toktickit_session` cookie | `server/tests/lab-03/auth.api.test.ts` | Planned |
-| **API-05** | API | FR-06 | Current user retrieval (`GET /api/auth/me`) | 200 OK; returns authenticated user profile and role | `server/tests/lab-03/auth.api.test.ts` | Planned |
-| **API-06** | API | AC-02, BR-02 | User with `mustChangePassword=true` accessing protected app endpoints | 403 Forbidden (`PASSWORD_CHANGE_REQUIRED`); access blocked until password is changed | `server/tests/lab-03/auth.api.test.ts` | Planned |
-| **API-07** | API | AC-02, FR-04 | Successful password change (`POST /api/auth/change-password`) | 200 OK; updates password hash; sets `mustChangePassword=false`; clears barrier | `server/tests/lab-03/auth.api.test.ts` | Planned |
+| **API-01** | API | AC-01, FR-01 | Valid user login | 200 OK; sets `toktickit_session` HTTP-only cookie; returns user profile without password hash | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| **API-02** | API | BR-01 | Login with invalid password | 401 Unauthorized; generic error message; no session cookie set | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| **API-03** | API | BR-01 | Login with inactive user account | 401 Unauthorized; safe error message; login blocked | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| **API-04** | API | FR-05 | User logout | 200 OK; clears `toktickit_session` cookie | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| **API-05** | API | FR-06 | Current user retrieval (`GET /api/auth/me`) | 200 OK; returns authenticated user profile and role | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| **API-06** | API | AC-02, BR-02 | User with `mustChangePassword=true` accessing protected app endpoints | 403 Forbidden (`PASSWORD_CHANGE_REQUIRED`); access blocked until password is changed | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| **API-07** | API | AC-02, FR-04 | Successful password change (`POST /api/auth/change-password`) | 200 OK; updates password hash; sets `mustChangePassword=false`; clears barrier | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | **API-08** | API | AC-04, BR-05 | Requester requests Internal Notes (`GET /api/tickets/:id/notes`) | 403 Forbidden; no note data or existence exposed | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
 | **API-09** | API | AC-04, BR-05 | Requester creates Internal Note (`POST /api/tickets/:id/notes`) | 403 Forbidden; note creation rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
 | **API-10** | API | AC-03, BR-03 | Requester ticket isolation on `GET /api/tickets` | Returns only tickets where `requesterId == req.user.id`; ignores client-supplied query id | `server/tests/lab-03/authorization.api.test.ts` | Planned |
@@ -62,9 +62,9 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **MIGR-01** | Migration | §5.1, §5.2 | Database migration from Lab 2 schema to Lab 3 User model | Lab 2 RequesterUser rows migrated to User; ticket & attachment foreign keys intact | `server/tests/lab-03/migration.test.ts` | Pass |
 | **MIGR-02** | Migration | BR-02, BR-09 | Migrated Requester authenticates with initial password | 200 OK; `mustChangePassword=true` returned; app access blocked until password changed | `server/tests/lab-03/migration.test.ts` | Pass |
 | **REGR-01** | Regression| FR-10, FR-11 | Lab 2 Requester flows (Create, My Tickets, Detail, Attachments) under real auth | Full ticket creation, listing, attachment upload/download/soft-delete functions pass | `server/tests/lab-03/requester-regression.test.ts` | Planned |
-| **UI-01** | Component | AC-01 | Login form validation, busy state spinner, and safe error rendering | Renders email/password errors; displays spinner when in flight | `client/tests/lab-03/Login.test.tsx` | Planned |
-| **UI-02** | Component | AC-02 | Change Password form rules checklist and validation | Checks mark active as rules are satisfied; confirms match | `client/tests/lab-03/ChangePassword.test.tsx` | Planned |
-| **UI-03** | Component | FR-08, FR-09 | App shell renders user name, role badge, and role-permitted navigation | Shows Staff navigation for staff, Admin navigation for admin | `client/tests/lab-03/AppShell.test.tsx` | Planned |
+| **UI-01** | Component | AC-01 | Login form validation, busy state spinner, and safe error rendering | Renders email/password errors; displays spinner when in flight | `client/tests/lab-03/Login.test.tsx` | Pass |
+| **UI-02** | Component | AC-02 | Change Password form rules checklist and validation | Checks mark active as rules are satisfied; confirms match | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
+| **UI-03** | Component | FR-08, FR-09 | App shell renders user name, role badge, and role-permitted navigation | Shows Staff navigation for staff, Admin navigation for admin | `client/tests/lab-03/AppShell.test.tsx` | Pass (Requester/IT Staff nav; Admin nav lands in Issue 7) |
 | **UI-04** | Component | AC-05, FR-15 | Staff Ticket Queue table, filter controls, pagination, and sorting | Correctly handles filter changes, sort toggles, and empty/no-results states | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Planned |
 | **UI-05** | Component | AC-06, AC-07 | Staff Ticket Detail operational controls (Owner, IT Priority, Status) | Shows only permitted status transitions; updates priority and owner | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Planned |
 | **UI-06** | Component | BR-04, BR-05 | Public Comments vs. Internal Notes visual styling distinction | Internal Notes render with distinct warning amber border and lock banner | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Planned |

@@ -1,10 +1,24 @@
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type TicketCurrentStatus = 'NEW';
+export type UserRole = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
 
 type BadgeProps =
   | { kind: 'priority'; value: TicketPriority }
   | { kind: 'status'; value: TicketCurrentStatus }
-  | { kind: 'itPriority' };
+  | { kind: 'itPriority' }
+  | { kind: 'role'; value: UserRole };
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  REQUESTER: 'Requester',
+  IT_STAFF: 'IT Staff',
+  ADMINISTRATOR: 'Administrator',
+};
+
+const ROLE_CLASS: Record<UserRole, string> = {
+  REQUESTER: 'badge-role-requester',
+  IT_STAFF: 'badge-role-it-staff',
+  ADMINISTRATOR: 'badge-role-administrator',
+};
 
 const PRIORITY_LABEL: Record<TicketPriority, string> = {
   LOW: 'Low',
@@ -33,6 +47,10 @@ const STATUS_CLASS: Record<TicketCurrentStatus, string> = {
 export function Badge(props: BadgeProps) {
   if (props.kind === 'itPriority') {
     return <span className="zg-badge badge-triage-pending">Not yet triaged</span>;
+  }
+
+  if (props.kind === 'role') {
+    return <span className={`zg-badge ${ROLE_CLASS[props.value]}`}>{ROLE_LABEL[props.value]}</span>;
   }
 
   if (props.kind === 'priority') {

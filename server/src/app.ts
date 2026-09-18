@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import fs from 'fs';
 import { prisma } from './db.js';
@@ -15,11 +16,24 @@ import {
   generateStoredFileName,
   getAttachmentFilePath,
 } from './utils/attachmentStorage.js';
+import {
+  SESSION_COOKIE_NAME,
+  hashPassword,
+  comparePassword,
+  signSessionToken,
+  verifySessionToken,
+  getSessionCookieOptions,
+  validatePasswordComplexity,
+  isValidEmailFormat,
+} from './utils/auth.js';
 
 const app = express();
 
-app.use(cors());
+// credentials: true is required so the browser sends/receives the toktickit_session
+// cookie (api-spec.md §0.1) — that only works against a specific origin, not '*'.
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 // Configure multer with memory storage
 const upload = multer({
@@ -69,6 +83,244 @@ export async function verifyRequesterContext(
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Authentication (Issue 3 / api-spec.md §0, §1)
+// ---------------------------------------------------------------------------
+
+export interface AuthenticatedUser {
+  id: number;
+  email: string;
+  role: 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
+  mustChangePassword: boolean;
+}
+
+// CSRF defense-in-depth (api-spec.md §0.1.3): mutating auth endpoints must be
+// called via the app's own fetch client, never a plain HTML form submission.
+function enforceJsonRequestSecurity(req: Request, res: Response, next: NextFunction): void {
+  if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+    res.status(400).json({
+      error: 'MISSING_REQUEST_HEADER',
+      message: 'This request must be made through the TokTickIT application client.',
+    });
+    return;
+  }
+  next();
+}
+
+// requireAuth (api-spec.md §0.2): verifies the session cookie and attaches req.user.
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const token = req.cookies?.[SESSION_COOKIE_NAME];
+  if (!token || typeof token !== 'string') {
+    res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Authentication is required.' });
+    return;
+  }
+
+  const payload = verifySessionToken(token);
+  if (!payload) {
+    res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
+    return;
+  }
+
+  (req as any).user = {
+    id: payload.userId,
+    email: payload.email,
+    role: payload.role,
+    mustChangePassword: payload.mustChangePassword,
+  } satisfies AuthenticatedUser;
+  next();
+}
+
+// requirePasswordChangeCompleted (api-spec.md §0.2): blocks users flagged
+// mustChangePassword from every route except change-password/logout/me.
+export function requirePasswordChangeCompleted(req: Request, res: Response, next: NextFunction): void {
+  const user = (req as any).user as AuthenticatedUser | undefined;
+  if (user?.mustChangePassword) {
+    res.status(403).json({
+      error: 'PASSWORD_CHANGE_REQUIRED',
+      message: 'You must change your password before continuing.',
+    });
+    return;
+  }
+  next();
+}
+
+// Login Endpoint (api-spec.md §1 "POST /api/auth/login")
+app.post('/api/auth/login', enforceJsonRequestSecurity, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password } = req.body ?? {};
+    const fieldErrors: Record<string, string> = {};
+
+    if (!isValidEmailFormat(email)) {
+      fieldErrors.email = 'A valid email address is required.';
+    }
+    if (typeof password !== 'string' || !password) {
+      fieldErrors.password = 'Password is required.';
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      res.status(400).json({ error: 'VALIDATION_FAILED', message: 'Please correct the highlighted fields.', fieldErrors });
+      return;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: (email as string).trim(), mode: 'insensitive' } },
+    });
+
+    if (!user) {
+      res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' });
+      return;
+    }
+
+    const passwordMatches = await comparePassword(password as string, user.passwordHash);
+    if (!passwordMatches) {
+      res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' });
+      return;
+    }
+
+    // BR-01: only an active user with valid credentials may authenticate.
+    if (!user.isActive) {
+      res.status(401).json({ error: 'ACCOUNT_INACTIVE', message: 'This account has been deactivated.' });
+      return;
+    }
+
+    const token = signSessionToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    });
+    res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
+    res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+      },
+    });
+  } catch (error) {
+    console.error('Error logging in:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
+// Logout Endpoint (api-spec.md §1 "POST /api/auth/logout")
+app.post('/api/auth/logout', enforceJsonRequestSecurity, (_req: Request, res: Response): void => {
+  res.clearCookie(SESSION_COOKIE_NAME, getSessionCookieOptions());
+  res.status(200).json({ message: 'Successfully logged out' });
+});
+
+// Current User Endpoint (api-spec.md §1 "GET /api/auth/me")
+app.get('/api/auth/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authUser = (req as any).user as AuthenticatedUser;
+    const user = await prisma.user.findUnique({ where: { id: authUser.id } });
+
+    if (!user) {
+      res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
+      return;
+    }
+
+    res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
+// Change Password Endpoint (api-spec.md §1 "POST /api/auth/change-password")
+app.post(
+  '/api/auth/change-password',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const { currentPassword, newPassword, confirmPassword } = req.body ?? {};
+      const fieldErrors: Record<string, string> = {};
+
+      if (typeof currentPassword !== 'string' || !currentPassword) {
+        fieldErrors.currentPassword = 'Current password is required.';
+      }
+
+      const complexity = validatePasswordComplexity(newPassword);
+      if (!complexity.isValid) {
+        fieldErrors.newPassword = complexity.error!;
+      }
+
+      if (typeof confirmPassword !== 'string' || confirmPassword !== newPassword) {
+        fieldErrors.confirmPassword = 'Passwords do not match.';
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        res.status(400).json({ error: 'VALIDATION_FAILED', message: 'Please correct the highlighted fields.', fieldErrors });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: authUser.id } });
+      if (!user) {
+        res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
+        return;
+      }
+
+      const currentMatches = await comparePassword(currentPassword, user.passwordHash);
+      if (!currentMatches) {
+        res.status(400).json({
+          error: 'INVALID_CURRENT_PASSWORD',
+          message: 'Current password is incorrect.',
+          fieldErrors: { currentPassword: 'Current password is incorrect.' },
+        });
+        return;
+      }
+
+      const sameAsCurrent = await comparePassword(newPassword, user.passwordHash);
+      if (sameAsCurrent) {
+        res.status(400).json({
+          error: 'PASSWORD_REUSED',
+          message: 'New password must be different from the current password.',
+          fieldErrors: { newPassword: 'New password must be different from the current password.' },
+        });
+        return;
+      }
+
+      const newHash = await hashPassword(newPassword);
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: newHash, mustChangePassword: false },
+      });
+
+      const token = signSessionToken({
+        userId: updated.id,
+        email: updated.email,
+        role: updated.role,
+        mustChangePassword: false,
+      });
+      res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
+      res.status(200).json({
+        message: 'Password successfully updated',
+        user: {
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          role: updated.role,
+          mustChangePassword: false,
+        },
+      });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
 
 // Health Check Endpoint
 app.get('/api/health', (_req, res) => {

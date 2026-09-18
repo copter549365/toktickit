@@ -17,6 +17,8 @@
   --color-error: #8a1f1f;
   --color-warning: #b36b00;
   --color-success: #0b7a46;
+  /* Lab 3 addition (docs/lab-03/ui-spec.md §1) */
+  --color-text-muted: #5c6b64;
 
   /* Spacing / typography (ui-spec.md §2) */
   --zg-space-unit: 8px;
@@ -176,6 +178,26 @@ body {
   color: #4b4b4b;
 }
 
+/* ---- Role badges (docs/lab-03/ui-spec.md §3.1) ---- */
+
+.badge-role-requester {
+  background: #eaf6ef;
+  color: #006b3c;
+  border: 1px solid #b8dfc9;
+}
+
+.badge-role-it-staff {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.badge-role-administrator {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #e9d5ff;
+}
+
 /* ---- Loading / Empty / No-results / Error (ui-spec.md §3) ---- */
 
 .zg-state-panel {
@@ -206,6 +228,28 @@ body {
 .zg-selection-card {
   width: 100%;
   max-width: 480px;
+}
+
+/* ---- Login & Change Password screens (docs/lab-03/ui-spec.md §5.1-5.2) ---- */
+
+.zg-auth-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+.zg-auth-card--wide {
+  max-width: 480px;
+}
+
+.zg-password-checklist li {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.zg-password-checklist li.is-met {
+  color: var(--color-secondary);
+  font-weight: 600;
 }
 
 /* ---- Application shell (ui-spec.md §4.1) ---- */
