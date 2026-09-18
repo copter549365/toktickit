@@ -45,6 +45,11 @@ export function AppShell() {
                     </NavLink>
                   </>
                 )}
+                {user?.role === 'IT_STAFF' && (
+                  <NavLink to="/staff/tickets" end className={navLinkClass}>
+                    Ticket Queue
+                  </NavLink>
+                )}
               </div>
               <div className="d-flex align-items-center gap-3 mt-3 mt-md-0 text-white">
                 {user && (

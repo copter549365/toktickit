@@ -24,7 +24,7 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 |---|---|---|---|---|---|---|
 | **UNIT-01** | Unit | BR-07, AC-02 | Password complexity validator | Rejects passwords missing uppercase, lowercase, numbers, or symbols; accepts compliant passwords | `server/tests/lab-03/auth.unit.test.ts` | Pass |
 | **UNIT-02** | Unit | BR-13, AC-08 | Status transition state machine | Permits valid transitions (e.g. `OPEN` → `IN_PROGRESS`); rejects invalid transitions (e.g. `NEW` → `CLOSED`) | `server/tests/lab-03/workflow.unit.test.ts` | Planned |
-| **UNIT-03** | Unit | FR-15, AC-05 | Queue query normalizer & parser | Falls back safely on invalid sort fields, negative pages, or oversized page sizes | `server/tests/lab-03/queue-query.unit.test.ts` | Planned |
+| **UNIT-03** | Unit | FR-15, AC-05 | Queue query normalizer & parser | Falls back safely on invalid sort fields, negative pages, or oversized page sizes | `server/tests/lab-03/queue-query.unit.test.ts` | Pass |
 | **API-01** | API | AC-01, FR-01 | Valid user login | 200 OK; sets `toktickit_session` HTTP-only cookie; returns user profile without password hash | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | **API-02** | API | BR-01 | Login with invalid password | 401 Unauthorized; generic error message; no session cookie set | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | **API-03** | API | BR-01 | Login with inactive user account | 401 Unauthorized; safe error message; login blocked | `server/tests/lab-03/auth.api.test.ts` | Pass |
@@ -36,10 +36,10 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **API-09** | API | AC-04, BR-05 | Requester creates Internal Note (`POST /api/tickets/:id/notes`) | 403 Forbidden; note creation rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
 | **API-10** | API | AC-03, BR-03 | Requester ticket isolation on `GET /api/tickets` | Returns only tickets where `requesterId == req.user.id`; ignores client-supplied query id | `server/tests/lab-03/authorization.api.test.ts` | Pass |
 | **API-11** | API | AC-03, BR-03 | Requester accessing another user's ticket detail (`GET /api/tickets/:id`) | 404 Not Found (safe error, no information leakage) | `server/tests/lab-03/authorization.api.test.ts` | Pass |
-| **API-12** | API | AC-05, FR-14 | IT Staff retrieves ticket queue (`GET /api/staff/tickets`) | 200 OK; returns tickets across all requesters with pagination metadata | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
-| **API-13** | API | AC-05, FR-15 | IT Staff queue search by Ticket Number or Summary | 200 OK; returns only matching tickets | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
-| **API-14** | API | AC-05, FR-15 | IT Staff queue filter by status, priority, category, owner | 200 OK; returns filtered results | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
-| **API-15** | API | AC-05 | Requester attempts to access staff queue (`GET /api/staff/tickets`) | 403 Forbidden; access denied | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
+| **API-12** | API | AC-05, FR-14 | IT Staff retrieves ticket queue (`GET /api/staff/tickets`) | 200 OK; returns tickets across all requesters with pagination metadata | `server/tests/lab-03/staff-queue.api.test.ts` | Pass |
+| **API-13** | API | AC-05, FR-15 | IT Staff queue search by Ticket Number or Summary | 200 OK; returns only matching tickets | `server/tests/lab-03/staff-queue.api.test.ts` | Pass |
+| **API-14** | API | AC-05, FR-15 | IT Staff queue filter by status, priority, category, owner | 200 OK; returns filtered results | `server/tests/lab-03/staff-queue.api.test.ts` | Pass |
+| **API-15** | API | AC-05 | Requester attempts to access staff queue (`GET /api/staff/tickets`) | 403 Forbidden; access denied | `server/tests/lab-03/staff-queue.api.test.ts` | Pass |
 | **API-16** | API | AC-06, FR-16 | IT Staff claims unassigned ticket (`PATCH /api/staff/tickets/:id/owner`) | 200 OK; assigns acting user as ticket owner | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
 | **API-17** | API | AC-06, FR-16 | IT Staff reassigns ticket to another active staff member | 200 OK; owner updated to new staff user | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
 | **API-18** | API | AC-06 | Assigning ticket owner to a Requester user | 400 Bad Request; target user must have role `IT_STAFF` or `ADMINISTRATOR` | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
@@ -65,7 +65,7 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **UI-01** | Component | AC-01 | Login form validation, busy state spinner, and safe error rendering | Renders email/password errors; displays spinner when in flight | `client/tests/lab-03/Login.test.tsx` | Pass |
 | **UI-02** | Component | AC-02 | Change Password form rules checklist and validation | Checks mark active as rules are satisfied; confirms match | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
 | **UI-03** | Component | FR-08, FR-09 | App shell renders user name, role badge, and role-permitted navigation | Shows Staff navigation for staff, Admin navigation for admin | `client/tests/lab-03/AppShell.test.tsx` | Pass (Requester/IT Staff nav; Admin nav lands in Issue 7) |
-| **UI-04** | Component | AC-05, FR-15 | Staff Ticket Queue table, filter controls, pagination, and sorting | Correctly handles filter changes, sort toggles, and empty/no-results states | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Planned |
+| **UI-04** | Component | AC-05, FR-15 | Staff Ticket Queue table, filter controls, pagination, and sorting | Correctly handles filter changes, sort toggles, and empty/no-results states | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass |
 | **UI-05** | Component | AC-06, AC-07 | Staff Ticket Detail operational controls (Owner, IT Priority, Status) | Shows only permitted status transitions; updates priority and owner | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Planned |
 | **UI-06** | Component | BR-04, BR-05 | Public Comments vs. Internal Notes visual styling distinction | Internal Notes render with distinct warning amber border and lock banner | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Planned |
 | **UI-07** | Component | AC-10, AC-12 | Admin User Management user list, create modal, and self-deactivation guard | Self-deactivate toggle is disabled for logged-in admin | `client/tests/lab-03/UserManagement.test.tsx` | Planned |

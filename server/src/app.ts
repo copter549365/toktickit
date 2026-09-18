@@ -7,7 +7,11 @@ import fs from 'fs';
 import { prisma } from './db.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
 import { validateTicketInputFields, validateRemovalReason, validateCommentContent } from './utils/validation.js';
-import { normalizeTicketListQuery, escapeLikeWildcards } from './utils/ticketQuery.js';
+import {
+  normalizeTicketListQuery,
+  normalizeStaffQueueQuery,
+  escapeLikeWildcards,
+} from './utils/ticketQuery.js';
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
   ensureUploadsDirectory,
@@ -1104,6 +1108,103 @@ app.delete(
     console.error('Error removing attachment:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
+  },
+);
+
+// IT Staff Ticket Queue Endpoint (api-spec.md §3 "GET /api/staff/tickets")
+app.get(
+  '/api/staff/tickets',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const {
+        search,
+        categoryId,
+        requestedPriority,
+        itPriority,
+        currentStatus,
+        ticketOwnerId,
+        sortBy,
+        sortOrder,
+        page,
+        pageSize,
+      } = normalizeStaffQueueQuery(req.query as Record<string, unknown>);
+
+      const where: any = {};
+
+      if (search) {
+        const escapedSearch = escapeLikeWildcards(search);
+        where.OR = [
+          { ticketNumber: { contains: escapedSearch, mode: 'insensitive' } },
+          { summary: { contains: escapedSearch, mode: 'insensitive' } },
+        ];
+      }
+
+      if (categoryId !== undefined) {
+        where.categoryId = categoryId;
+      }
+
+      if (requestedPriority) {
+        where.requestedPriority = requestedPriority;
+      }
+
+      if (itPriority) {
+        where.itPriority = itPriority;
+      }
+
+      if (currentStatus) {
+        where.currentStatus = currentStatus;
+      }
+
+      if (ticketOwnerId === 'unassigned') {
+        where.ticketOwnerId = null;
+      } else if (typeof ticketOwnerId === 'number') {
+        where.ticketOwnerId = ticketOwnerId;
+      }
+
+      const [tickets, totalCount] = await Promise.all([
+        prisma.ticket.findMany({
+          where,
+          orderBy: { [sortBy]: sortOrder },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            category: { select: { id: true, name: true } },
+            requester: { select: { id: true, name: true, email: true } },
+            ticketOwner: { select: { id: true, name: true } },
+          },
+        }),
+        prisma.ticket.count({ where }),
+      ]);
+
+      res.status(200).json({
+        data: tickets.map((t) => ({
+          id: t.id,
+          ticketNumber: t.ticketNumber,
+          createdAt: t.createdAt,
+          summary: t.summary,
+          category: t.category,
+          requestedPriority: t.requestedPriority,
+          itPriority: t.itPriority,
+          currentStatus: t.currentStatus,
+          requester: t.requester,
+          owner: t.ticketOwner,
+          requesterResolvedIndicator: t.requesterResolvedIndicator,
+          updatedAt: t.updatedAt,
+        })),
+        meta: {
+          page,
+          pageSize,
+          totalCount,
+          totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+        },
+      });
+    } catch (error) {
+      console.error('Error listing staff ticket queue:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
   },
 );
 
