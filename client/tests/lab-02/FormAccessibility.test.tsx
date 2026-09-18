@@ -2,28 +2,30 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { RequesterProvider } from '../../src/context/RequesterContext';
+import { AuthProvider } from '../../src/context/AuthContext';
 import { CreateTicket } from '../../src/screens/CreateTicket';
 
 const mockCategories = [{ id: 1, name: 'Account and Access' }];
 const mockRelatedSystems = [{ id: 1, name: 'Email' }];
-const mockRequester = {
+const mockAuthUser = {
   id: 1,
   name: 'Jennifer Anderson',
   email: 'jennifer.anderson@example.com',
-  isActive: true,
+  role: 'REQUESTER',
+  mustChangePassword: false,
 };
 
 describe('STYLE-01: Form Accessibility and Zen Green Style Requirements', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    sessionStorage.clear();
-    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(mockRequester));
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/auth/me')) {
+          return Promise.resolve({ ok: true, json: async () => ({ user: mockAuthUser }) } as Response);
+        }
         if (url.includes('/api/categories')) {
           return Promise.resolve({
             ok: true,
@@ -44,11 +46,11 @@ describe('STYLE-01: Form Accessibility and Zen Green Style Requirements', () => 
   it('renders required-field asterisks with aria-hidden="true" on all required form fields', async () => {
     render(
       <MemoryRouter initialEntries={['/tickets/new']}>
-        <RequesterProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/tickets/new" element={<CreateTicket />} />
           </Routes>
-        </RequesterProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 
@@ -68,11 +70,11 @@ describe('STYLE-01: Form Accessibility and Zen Green Style Requirements', () => 
   it('renders validation error messages with role="alert" and aria-describedby linkage when invalid', async () => {
     render(
       <MemoryRouter initialEntries={['/tickets/new']}>
-        <RequesterProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/tickets/new" element={<CreateTicket />} />
           </Routes>
-        </RequesterProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 
@@ -101,11 +103,11 @@ describe('STYLE-01: Form Accessibility and Zen Green Style Requirements', () => 
   it('read-only system fields have proper aria-readonly attributes and distinct styling class', async () => {
     render(
       <MemoryRouter initialEntries={['/tickets/new']}>
-        <RequesterProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/tickets/new" element={<CreateTicket />} />
           </Routes>
-        </RequesterProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 

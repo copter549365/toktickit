@@ -6,8 +6,10 @@ export type TicketStatus =
   | 'NEW'
   | 'OPEN'
   | 'IN_PROGRESS'
+  | 'WAITING_FOR_REQUESTER'
   | 'RESOLVED'
   | 'CLOSED'
+  | 'REOPENED'
   | 'CANCELLED';
 
 export interface Ticket {
@@ -24,12 +26,15 @@ export interface Ticket {
   itPriority: Priority | null;
   currentStatus: TicketStatus;
   ticketOwnerId: number | null;
+  requesterResolvedIndicator: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface TicketDetail extends Ticket {
   relatedSystemName: string;
+  ticketOwnerName: string | null;
+  publicCommentsCount: number;
   attachments: Attachment[];
 }
 
@@ -45,11 +50,13 @@ export interface TicketListItem {
   id: number;
   ticketNumber: string;
   summary: string;
-  categoryId: number;
-  categoryName: string;
+  category: { id: number; name: string };
+  relatedSystem: { id: number; name: string };
   requestedPriority: Priority;
   itPriority: Priority | null;
   currentStatus: TicketStatus;
+  requesterResolvedIndicator: boolean;
+  owner: { id: number; name: string } | null;
   createdAt: string;
   updatedAt: string;
 }

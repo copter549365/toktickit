@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useRequester } from '../context/RequesterContext';
+import { useAuth } from '../context/AuthContext';
 import { fetchCategories } from '../api/categories';
 import { fetchMyTickets, ApiError } from '../api/tickets';
 import { Button } from '../components/Button';
@@ -24,7 +24,16 @@ const PAGE_SIZE = 10;
 const DEFAULT_SORT_BY: TicketSortField = 'createdAt';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
 
-const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [{ value: 'NEW', label: 'New' }];
+const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
+  { value: 'NEW', label: 'New' },
+  { value: 'OPEN', label: 'Open' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
+  { value: 'WAITING_FOR_REQUESTER', label: 'Waiting for Requester' },
+  { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'CLOSED', label: 'Closed' },
+  { value: 'REOPENED', label: 'Reopened' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
 
 const SORT_COLUMNS: { field: TicketSortField; label: string }[] = [
   { field: 'ticketNumber', label: 'Ticket No.' },
@@ -46,7 +55,7 @@ function getPaginationItems(currentPage: number, totalPages: number): (number | 
 }
 
 export function MyTickets() {
-  const { requester } = useRequester();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -66,8 +75,6 @@ export function MyTickets() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const prevRequesterIdRef = useRef<number | null>(null);
-
   const hasActiveFilters = Boolean(search || categoryId || requestedPriority || currentStatus);
 
   // Debounce the free-text search box so typing doesn't fire a request per keystroke.
@@ -86,17 +93,7 @@ export function MyTickets() {
   }, []);
 
   useEffect(() => {
-    if (!requester) return;
-
-    // Clear stale rows immediately when the acting Requester changes (BR-06, AC-12).
-    const isRequesterChanged =
-      prevRequesterIdRef.current !== null && prevRequesterIdRef.current !== requester.id;
-    prevRequesterIdRef.current = requester.id;
-
-    if (isRequesterChanged) {
-      setTickets([]);
-      setMeta(null);
-    }
+    if (!user) return;
 
     setIsLoading(true);
     setLoadError(null);
@@ -105,7 +102,6 @@ export function MyTickets() {
     const controller = new AbortController();
 
     fetchMyTickets(
-      requester.id,
       {
         search: search || undefined,
         categoryId: categoryId ? Number(categoryId) : undefined,
@@ -140,7 +136,7 @@ export function MyTickets() {
       ignore = true;
       controller.abort();
     };
-  }, [requester, search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, retryCount]);
+  }, [user, search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, retryCount]);
 
   const handleSort = (field: TicketSortField) => {
     if (sortBy === field) {
@@ -196,7 +192,7 @@ export function MyTickets() {
           <h1 className="h4 fw-bold mb-1" style={{ color: 'var(--color-primary)' }}>
             My Tickets
           </h1>
-          <p className="text-muted small mb-0">Tickets you have submitted, scoped to {requester?.name}.</p>
+          <p className="text-muted small mb-0">Tickets you have submitted, scoped to {user?.name}.</p>
         </div>
         <div className="d-flex gap-2">
           <Button variant="tertiary" onClick={handleClearFilters} disabled={!hasActiveFilters}>
@@ -354,12 +350,12 @@ export function MyTickets() {
                       <td className="text-truncate" style={{ maxWidth: 280 }} title={t.summary}>
                         {t.summary}
                       </td>
-                      <td>{t.categoryName}</td>
+                      <td>{t.category.name}</td>
                       <td>
                         <Badge kind="priority" value={t.requestedPriority} />
                       </td>
                       <td>
-                        <Badge kind="status" value={t.currentStatus as 'NEW'} />
+                        <Badge kind="status" value={t.currentStatus} />
                       </td>
                       <td>{formatDate(t.updatedAt)}</td>
                     </tr>
@@ -386,12 +382,12 @@ export function MyTickets() {
                 <div className="card-body p-3">
                   <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
                     <span className="font-monospace small fw-semibold">{t.ticketNumber}</span>
-                    <Badge kind="status" value={t.currentStatus as 'NEW'} />
+                    <Badge kind="status" value={t.currentStatus} />
                   </div>
                   <div className="fw-medium mb-2">{t.summary}</div>
                   <div className="d-flex flex-wrap gap-2 mb-2">
                     <Badge kind="priority" value={t.requestedPriority} />
-                    <span className="badge bg-light text-dark border">{t.categoryName}</span>
+                    <span className="badge bg-light text-dark border">{t.category.name}</span>
                   </div>
                   <div className="small text-muted">
                     Created {formatDate(t.createdAt)} · Updated {formatDate(t.updatedAt)}

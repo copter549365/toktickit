@@ -6,7 +6,7 @@ import multer from 'multer';
 import fs from 'fs';
 import { prisma } from './db.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
-import { validateTicketInputFields, validateRemovalReason } from './utils/validation.js';
+import { validateTicketInputFields, validateRemovalReason, validateCommentContent } from './utils/validation.js';
 import { normalizeTicketListQuery, escapeLikeWildcards } from './utils/ticketQuery.js';
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
@@ -42,47 +42,6 @@ const upload = multer({
     fileSize: 15 * 1024 * 1024, // buffer slightly larger so we return custom 413
   },
 });
-
-// Middleware for Requester Context Verification (api-spec.md §0)
-export async function verifyRequesterContext(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const requesterIdHeader = req.headers['x-requester-id'];
-
-  if (!requesterIdHeader || typeof requesterIdHeader !== 'string') {
-    res.status(400).json({ error: 'MISSING_REQUESTER_CONTEXT' });
-    return;
-  }
-
-  const requesterId = parseInt(requesterIdHeader, 10);
-  if (isNaN(requesterId) || String(requesterId) !== requesterIdHeader.trim()) {
-    res.status(400).json({ error: 'MISSING_REQUESTER_CONTEXT' });
-    return;
-  }
-
-  try {
-    // Lab 3 note: RequesterUser was migrated into the unified User model
-    // (see docs/lab-03/handout.md §5). This scopes back to REQUESTER role
-    // as a temporary compatibility shim for the Lab 2 dev-selector flow;
-    // Issue 3/4 replace this middleware with real session authentication.
-    const requester = await prisma.user.findUnique({
-      where: { id: requesterId },
-    });
-
-    if (!requester || !requester.isActive || requester.role !== 'REQUESTER') {
-      res.status(401).json({ error: 'INVALID_REQUESTER_CONTEXT' });
-      return;
-    }
-
-    (req as any).requester = requester;
-    next();
-  } catch (error) {
-    console.error('Error verifying requester context:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Authentication (Issue 3 / api-spec.md §0, §1)
@@ -143,6 +102,21 @@ export function requirePasswordChangeCompleted(req: Request, res: Response, next
     return;
   }
   next();
+}
+
+// requireRole (api-spec.md §0.2): enforces RBAC permissions.
+export function requireRole(...roles: AuthenticatedUser['role'][]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const user = (req as any).user as AuthenticatedUser | undefined;
+    if (!user || !roles.includes(user.role)) {
+      res.status(403).json({
+        error: 'FORBIDDEN_ROLE',
+        message: 'You do not have permission to perform this action.',
+      });
+      return;
+    }
+    next();
+  };
 }
 
 // Login Endpoint (api-spec.md §1 "POST /api/auth/login")
@@ -365,30 +339,15 @@ app.get('/api/related-systems', async (_req, res) => {
   }
 });
 
-// Active Development Requesters Endpoint (api-spec.md §1 "GET /api/requesters")
-app.get('/api/requesters', async (_req, res) => {
-  try {
-    // Lab 3 compatibility shim — see verifyRequesterContext above.
-    const requesters = await prisma.user.findMany({
-      where: { isActive: true, role: 'REQUESTER' },
-      orderBy: { id: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-    });
-    res.status(200).json(requesters);
-  } catch (error) {
-    console.error('Error fetching requesters:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
 // Create Ticket Endpoint (api-spec.md §2 "POST /api/tickets")
-app.post('/api/tickets', verifyRequesterContext, async (req, res) => {
+app.post(
+  '/api/tickets',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req, res) => {
   try {
-    const requester = (req as any).requester;
+    const authUser = (req as any).user as AuthenticatedUser;
     const body = req.body;
 
     // Validate fields
@@ -431,37 +390,45 @@ app.post('/api/tickets', verifyRequesterContext, async (req, res) => {
     // Generate unique Ticket Number
     const ticketNumber = await getNextTicketNumber(prisma);
 
-    // Create ticket in database
+    // Create ticket in database. requesterId is derived from the authenticated session only
+    // (FR-10, BR-03) — never from any client-supplied value.
     const ticket = await prisma.ticket.create({
       data: {
         ticketNumber,
-        requesterId: requester.id,
+        requesterId: authUser.id,
         categoryId,
         relatedSystemId,
         summary: validation.trimmedSummary!,
         description: validation.trimmedDescription!,
         requestedPriority: body.requestedPriority,
-        itPriority: null,
+        // BR-11: itPriority initially copies Requested Priority.
+        itPriority: body.requestedPriority,
         currentStatus: 'NEW',
         ticketOwnerId: null,
       },
     });
 
-    res.status(201).json(ticket);
+    res.status(201).json({ ticket });
   } catch (error) {
     console.error('Error creating ticket:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
-});
+  },
+);
 
 // My Tickets List Endpoint (api-spec.md §2 "GET /api/tickets")
-app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
+app.get(
+  '/api/tickets',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req, res) => {
   try {
-    const requester = (req as any).requester;
+    const authUser = (req as any).user as AuthenticatedUser;
     const { search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, pageSize } =
       normalizeTicketListQuery(req.query as Record<string, unknown>);
 
-    const where: any = { requesterId: requester.id };
+    const where: any = { requesterId: authUser.id };
 
     if (search) {
       const escapedSearch = escapeLikeWildcards(search);
@@ -489,7 +456,11 @@ app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
         orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { category: { select: { name: true } } },
+        include: {
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+          ticketOwner: { select: { id: true, name: true } },
+        },
       }),
       prisma.ticket.count({ where }),
     ]);
@@ -498,13 +469,15 @@ app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
       data: tickets.map((t) => ({
         id: t.id,
         ticketNumber: t.ticketNumber,
+        createdAt: t.createdAt,
         summary: t.summary,
-        categoryId: t.categoryId,
-        categoryName: t.category.name,
+        category: t.category,
+        relatedSystem: t.relatedSystem,
         requestedPriority: t.requestedPriority,
         itPriority: t.itPriority,
         currentStatus: t.currentStatus,
-        createdAt: t.createdAt,
+        requesterResolvedIndicator: t.requesterResolvedIndicator,
+        owner: t.ticketOwner,
         updatedAt: t.updatedAt,
       })),
       meta: {
@@ -518,12 +491,18 @@ app.get('/api/tickets', verifyRequesterContext, async (req, res) => {
     console.error('Error listing tickets:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
-});
+  },
+);
 
 // Ticket Detail Endpoint (api-spec.md §2 "GET /api/tickets/:id")
-app.get('/api/tickets/:id', verifyRequesterContext, async (req, res) => {
+app.get(
+  '/api/tickets/:id',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req, res) => {
   try {
-    const requester = (req as any).requester;
+    const authUser = (req as any).user as AuthenticatedUser;
     const ticketId = parseInt(req.params.id as string, 10);
 
     if (isNaN(ticketId)) {
@@ -536,12 +515,14 @@ app.get('/api/tickets/:id', verifyRequesterContext, async (req, res) => {
       include: {
         category: { select: { name: true } },
         relatedSystem: { select: { name: true } },
+        ticketOwner: { select: { name: true } },
         attachments: { orderBy: { uploadedAt: 'asc' } },
+        _count: { select: { publicComments: true } },
       },
     });
 
-    // Ownership is never distinguished from not-found (BR-08, AC-03).
-    if (!ticket || ticket.requesterId !== requester.id) {
+    // Ownership is never distinguished from not-found (BR-03, AC-03).
+    if (!ticket || ticket.requesterId !== authUser.id) {
       res.status(404).json({ error: 'TICKET_NOT_FOUND' });
       return;
     }
@@ -560,6 +541,9 @@ app.get('/api/tickets/:id', verifyRequesterContext, async (req, res) => {
       itPriority: ticket.itPriority,
       currentStatus: ticket.currentStatus,
       ticketOwnerId: ticket.ticketOwnerId,
+      ticketOwnerName: ticket.ticketOwner?.name ?? null,
+      requesterResolvedIndicator: ticket.requesterResolvedIndicator,
+      publicCommentsCount: ticket._count.publicComments,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       attachments: ticket.attachments.map((a) => ({
@@ -578,12 +562,299 @@ app.get('/api/tickets/:id', verifyRequesterContext, async (req, res) => {
     console.error('Error fetching ticket:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
-});
+  },
+);
+
+// Problem Appears Resolved Endpoint (api-spec.md §2 "PATCH /api/tickets/:id/resolve-indicator")
+const RESOLVE_INDICATOR_ELIGIBLE_STATUSES = ['IN_PROGRESS', 'WAITING_FOR_REQUESTER'];
+app.patch(
+  '/api/tickets/:id/resolve-indicator',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+
+      if (isNaN(ticketId)) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket || ticket.requesterId !== authUser.id) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      // BR-06: only actionable while IT Staff is actively working the ticket.
+      if (!RESOLVE_INDICATOR_ELIGIBLE_STATUSES.includes(ticket.currentStatus)) {
+        res.status(400).json({
+          error: 'INVALID_TICKET_STATUS',
+          message: 'This action is only available while the ticket is In Progress or Waiting for Requester.',
+        });
+        return;
+      }
+
+      const updated = await prisma.ticket.update({
+        where: { id: ticketId },
+        data: { requesterResolvedIndicator: true },
+      });
+
+      res.status(200).json({
+        id: updated.id,
+        requesterResolvedIndicator: updated.requesterResolvedIndicator,
+        message: 'Problem resolution indicated. IT Staff will review and formally complete the ticket.',
+      });
+    } catch (error) {
+      console.error('Error setting resolve indicator:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Cancel Ticket Endpoint (api-spec.md §2 "PATCH /api/tickets/:id/cancel")
+app.patch(
+  '/api/tickets/:id/cancel',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+
+      if (isNaN(ticketId)) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket || ticket.requesterId !== authUser.id) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      // FR-13.1, BR-13: only cancellable before IT Staff has taken it up.
+      if (ticket.currentStatus !== 'NEW') {
+        res.status(400).json({
+          error: 'TICKET_ALREADY_IN_PROGRESS',
+          message: 'This ticket can no longer be cancelled because it is already being worked on.',
+        });
+        return;
+      }
+
+      const updated = await prisma.ticket.update({
+        where: { id: ticketId },
+        data: { currentStatus: 'CANCELLED' },
+      });
+
+      res.status(200).json({
+        id: updated.id,
+        currentStatus: updated.currentStatus,
+        updatedAt: updated.updatedAt,
+      });
+    } catch (error) {
+      console.error('Error cancelling ticket:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Public Comments Endpoints (api-spec.md §5 "GET/POST /api/tickets/:id/comments")
+async function loadTicketForComment(
+  ticketId: number,
+  authUser: AuthenticatedUser,
+): Promise<{ id: number; requesterId: number } | null> {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+    select: { id: true, requesterId: true },
+  });
+  if (!ticket) return null;
+  // Requesters may only reach their own ticket's comments (BR-03); IT Staff/Admin see any.
+  if (authUser.role === 'REQUESTER' && ticket.requesterId !== authUser.id) return null;
+  return ticket;
+}
+
+app.get(
+  '/api/tickets/:id/comments',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+
+      if (isNaN(ticketId) || !(await loadTicketForComment(ticketId, authUser))) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const comments = await prisma.publicComment.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: 'asc' },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      res.status(200).json(
+        comments.map((c) => ({
+          id: c.id,
+          content: c.content,
+          createdAt: c.createdAt,
+          author: c.author,
+        })),
+      );
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+app.post(
+  '/api/tickets/:id/comments',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+
+      if (isNaN(ticketId) || !(await loadTicketForComment(ticketId, authUser))) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const validation = validateCommentContent(req.body?.content);
+      if (!validation.isValid) {
+        res.status(400).json({
+          error: 'VALIDATION_FAILED',
+          message: validation.error,
+          fieldErrors: { content: validation.error! },
+        });
+        return;
+      }
+
+      const comment = await prisma.publicComment.create({
+        data: { ticketId, authorId: authUser.id, content: validation.trimmed! },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      res.status(201).json({
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        author: comment.author,
+      });
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Internal Notes Endpoints (api-spec.md §5 "GET/POST /api/tickets/:id/notes") — strictly
+// restricted to IT Staff and Administrators; a Requester must never see or create notes (AC-04).
+app.get(
+  '/api/tickets/:id/notes',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const ticketId = parseInt(req.params.id as string, 10);
+      if (isNaN(ticketId)) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!ticket) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const notes = await prisma.internalNote.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: 'asc' },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      res.status(200).json(
+        notes.map((n) => ({
+          id: n.id,
+          content: n.content,
+          createdAt: n.createdAt,
+          author: n.author,
+        })),
+      );
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+app.post(
+  '/api/tickets/:id/notes',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+      if (isNaN(ticketId)) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!ticket) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const validation = validateCommentContent(req.body?.content);
+      if (!validation.isValid) {
+        res.status(400).json({
+          error: 'VALIDATION_FAILED',
+          message: validation.error,
+          fieldErrors: { content: validation.error! },
+        });
+        return;
+      }
+
+      const note = await prisma.internalNote.create({
+        data: { ticketId, authorId: authUser.id, content: validation.trimmed! },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      res.status(201).json({
+        id: note.id,
+        content: note.content,
+        createdAt: note.createdAt,
+        author: note.author,
+      });
+    } catch (error) {
+      console.error('Error posting note:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
 
 // Upload Attachment Endpoint (api-spec.md §3 "POST /api/tickets/:id/attachments")
 app.post(
   '/api/tickets/:id/attachments',
-  verifyRequesterContext,
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
   (req: Request, res: Response, next: NextFunction) => {
     upload.single('file')(req, res, (err: any) => {
       if (err) {
@@ -599,7 +870,7 @@ app.post(
   },
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const requester = (req as any).requester;
+      const authUser = (req as any).user as AuthenticatedUser;
       const ticketId = parseInt(req.params.id as string, 10);
 
       if (isNaN(ticketId)) {
@@ -617,7 +888,7 @@ app.post(
         },
       });
 
-      if (!ticket || ticket.requesterId !== requester.id) {
+      if (!ticket || ticket.requesterId !== authUser.id) {
         res.status(404).json({ error: 'TICKET_NOT_FOUND' });
         return;
       }
@@ -681,9 +952,14 @@ app.post(
 );
 
 // Attachment Metadata Endpoint (api-spec.md §3 "GET /api/attachments/:id")
-app.get('/api/attachments/:id', verifyRequesterContext, async (req: Request, res: Response): Promise<void> => {
+app.get(
+  '/api/attachments/:id',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req: Request, res: Response): Promise<void> => {
   try {
-    const requester = (req as any).requester;
+    const authUser = (req as any).user as AuthenticatedUser;
     const attachmentId = parseInt(req.params.id as string, 10);
 
     if (isNaN(attachmentId)) {
@@ -696,7 +972,7 @@ app.get('/api/attachments/:id', verifyRequesterContext, async (req: Request, res
       include: { ticket: true },
     });
 
-    if (!attachment || attachment.ticket.requesterId !== requester.id) {
+    if (!attachment || attachment.ticket.requesterId !== authUser.id) {
       res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
       return;
     }
@@ -716,15 +992,18 @@ app.get('/api/attachments/:id', verifyRequesterContext, async (req: Request, res
     console.error('Error fetching attachment:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
-});
+  },
+);
 
 // Attachment Download Endpoint (api-spec.md §3 "GET /api/attachments/:id/download")
 app.get(
   '/api/attachments/:id/download',
-  verifyRequesterContext,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const requester = (req as any).requester;
+      const authUser = (req as any).user as AuthenticatedUser;
       const attachmentId = parseInt(req.params.id as string, 10);
 
       if (isNaN(attachmentId)) {
@@ -739,7 +1018,7 @@ app.get(
 
       // Not-found, not-owned, and soft-removed all return the identical response so a
       // removed file's existence can never be probed (BR-24, AC-24, AC-25).
-      if (!attachment || attachment.ticket.requesterId !== requester.id || attachment.isRemoved) {
+      if (!attachment || attachment.ticket.requesterId !== authUser.id || attachment.isRemoved) {
         res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
         return;
       }
@@ -769,9 +1048,15 @@ app.get(
 );
 
 // Soft-Remove Attachment Endpoint (api-spec.md §3 "DELETE /api/attachments/:id")
-app.delete('/api/attachments/:id', verifyRequesterContext, async (req: Request, res: Response): Promise<void> => {
+app.delete(
+  '/api/attachments/:id',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req: Request, res: Response): Promise<void> => {
   try {
-    const requester = (req as any).requester;
+    const authUser = (req as any).user as AuthenticatedUser;
     const attachmentId = parseInt(req.params.id as string, 10);
 
     if (isNaN(attachmentId)) {
@@ -790,7 +1075,7 @@ app.delete('/api/attachments/:id', verifyRequesterContext, async (req: Request, 
       include: { ticket: true },
     });
 
-    if (!attachment || attachment.ticket.requesterId !== requester.id) {
+    if (!attachment || attachment.ticket.requesterId !== authUser.id) {
       res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
       return;
     }
@@ -819,6 +1104,7 @@ app.delete('/api/attachments/:id', verifyRequesterContext, async (req: Request, 
     console.error('Error removing attachment:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
-});
+  },
+);
 
 export default app;

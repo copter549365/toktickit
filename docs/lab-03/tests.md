@@ -32,10 +32,10 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **API-05** | API | FR-06 | Current user retrieval (`GET /api/auth/me`) | 200 OK; returns authenticated user profile and role | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | **API-06** | API | AC-02, BR-02 | User with `mustChangePassword=true` accessing protected app endpoints | 403 Forbidden (`PASSWORD_CHANGE_REQUIRED`); access blocked until password is changed | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | **API-07** | API | AC-02, FR-04 | Successful password change (`POST /api/auth/change-password`) | 200 OK; updates password hash; sets `mustChangePassword=false`; clears barrier | `server/tests/lab-03/auth.api.test.ts` | Pass |
-| **API-08** | API | AC-04, BR-05 | Requester requests Internal Notes (`GET /api/tickets/:id/notes`) | 403 Forbidden; no note data or existence exposed | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
-| **API-09** | API | AC-04, BR-05 | Requester creates Internal Note (`POST /api/tickets/:id/notes`) | 403 Forbidden; note creation rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
-| **API-10** | API | AC-03, BR-03 | Requester ticket isolation on `GET /api/tickets` | Returns only tickets where `requesterId == req.user.id`; ignores client-supplied query id | `server/tests/lab-03/authorization.api.test.ts` | Planned |
-| **API-11** | API | AC-03, BR-03 | Requester accessing another user's ticket detail (`GET /api/tickets/:id`) | 404 Not Found (safe error, no information leakage) | `server/tests/lab-03/authorization.api.test.ts` | Planned |
+| **API-08** | API | AC-04, BR-05 | Requester requests Internal Notes (`GET /api/tickets/:id/notes`) | 403 Forbidden; no note data or existence exposed | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
+| **API-09** | API | AC-04, BR-05 | Requester creates Internal Note (`POST /api/tickets/:id/notes`) | 403 Forbidden; note creation rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
+| **API-10** | API | AC-03, BR-03 | Requester ticket isolation on `GET /api/tickets` | Returns only tickets where `requesterId == req.user.id`; ignores client-supplied query id | `server/tests/lab-03/authorization.api.test.ts` | Pass |
+| **API-11** | API | AC-03, BR-03 | Requester accessing another user's ticket detail (`GET /api/tickets/:id`) | 404 Not Found (safe error, no information leakage) | `server/tests/lab-03/authorization.api.test.ts` | Pass |
 | **API-12** | API | AC-05, FR-14 | IT Staff retrieves ticket queue (`GET /api/staff/tickets`) | 200 OK; returns tickets across all requesters with pagination metadata | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
 | **API-13** | API | AC-05, FR-15 | IT Staff queue search by Ticket Number or Summary | 200 OK; returns only matching tickets | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
 | **API-14** | API | AC-05, FR-15 | IT Staff queue filter by status, priority, category, owner | 200 OK; returns filtered results | `server/tests/lab-03/staff-queue.api.test.ts` | Planned |
@@ -46,22 +46,22 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 | **API-19** | API | AC-07, FR-17 | IT Staff updates IT Priority (`PATCH /api/staff/tickets/:id/priority`) | 200 OK; `itPriority` updated; original `requestedPriority` remains unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
 | **API-20** | API | AC-08, FR-18 | IT Staff updates ticket status to valid next status (`OPEN` → `IN_PROGRESS`) | 200 OK; status updated | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
 | **API-21** | API | AC-08 | IT Staff attempts invalid status jump (`NEW` → `RESOLVED`) | 400 Bad Request; transition rejected | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
-| **API-22** | API | AC-09, FR-20 | Posting Public Comment as IT Staff / Requester | 201 Created; comment saved with author details | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
-| **API-23** | API | BR-15 | Posting empty or whitespace comment | 400 Bad Request; comment rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
-| **API-24** | API | FR-19 | Posting Internal Note as IT Staff | 201 Created; note saved with author details | `server/tests/lab-03/comments-notes.api.test.ts` | Planned |
+| **API-22** | API | AC-09, FR-20 | Posting Public Comment as IT Staff / Requester | 201 Created; comment saved with author details | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
+| **API-23** | API | BR-15 | Posting empty or whitespace comment | 400 Bad Request; comment rejected | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
+| **API-24** | API | FR-19 | Posting Internal Note as IT Staff | 201 Created; note saved with author details | `server/tests/lab-03/comments-notes.api.test.ts` | Pass |
 | **API-25** | API | AC-14 | Requester or IT Staff accessing Admin user list (`GET /api/admin/users`) | 403 Forbidden; access denied | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
 | **API-26** | API | AC-10, FR-23 | Administrator creates new user (`POST /api/admin/users`) | 201 Created; user saved with `mustChangePassword=true` and specified role | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
 | **API-27** | API | AC-11, BR-17 | Administrator creates user with duplicate email | 409 Conflict; duplicate email rejected | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
 | **API-28** | API | AC-12, BR-18 | Administrator deactivates own account (`PATCH /api/admin/users/:id`) | 400 Bad Request; self-deactivation rejected | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
 | **API-29** | API | AC-13, BR-19 | Administrator deactivates last remaining active Administrator | 400 Bad Request; last admin protection triggered | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
 | **API-30** | API | FR-25, BR-09 | Administrator resets user password (`POST /api/admin/users/:id/reset-password`) | 200 OK; password updated; `mustChangePassword` set to true | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-31** | API | AC-15, FR-13 | Requester marks ticket as appears resolved (`PATCH /api/tickets/:id/resolve-indicator`) | 200 OK; flag set to true; status remains unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Planned |
+| **API-31** | API | AC-15, FR-13 | Requester marks ticket as appears resolved (`PATCH /api/tickets/:id/resolve-indicator`) | 200 OK; flag set to true; status remains unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass |
 | **API-32** | API | AC-16, FR-22 | Administrator searches users by name/email and filters by role (`GET /api/admin/users`) | 200 OK; returns only matching users | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
 | **API-33** | API | AC-17, FR-24 | Administrator updates user name, email, role, and active status (`PATCH /api/admin/users/:id`) | 200 OK; changes persisted | `server/tests/lab-03/users-admin.api.test.ts` | Planned |
-| **API-34** | API | FR-13.1, BR-13| Requester cancels owned ticket while in `NEW` status (`PATCH /api/tickets/:id/cancel`) | 200 OK; status updated to `CANCELLED`; rejected if ticket is already in progress | `server/tests/lab-03/authorization.api.test.ts` | Planned |
+| **API-34** | API | FR-13.1, BR-13| Requester cancels owned ticket while in `NEW` status (`PATCH /api/tickets/:id/cancel`) | 200 OK; status updated to `CANCELLED`; rejected if ticket is already in progress | `server/tests/lab-03/authorization.api.test.ts` | Pass |
 | **MIGR-01** | Migration | §5.1, §5.2 | Database migration from Lab 2 schema to Lab 3 User model | Lab 2 RequesterUser rows migrated to User; ticket & attachment foreign keys intact | `server/tests/lab-03/migration.test.ts` | Pass |
 | **MIGR-02** | Migration | BR-02, BR-09 | Migrated Requester authenticates with initial password | 200 OK; `mustChangePassword=true` returned; app access blocked until password changed | `server/tests/lab-03/migration.test.ts` | Pass |
-| **REGR-01** | Regression| FR-10, FR-11 | Lab 2 Requester flows (Create, My Tickets, Detail, Attachments) under real auth | Full ticket creation, listing, attachment upload/download/soft-delete functions pass | `server/tests/lab-03/requester-regression.test.ts` | Planned |
+| **REGR-01** | Regression| FR-10, FR-11 | Lab 2 Requester flows (Create, My Tickets, Detail, Attachments) under real auth | Full ticket creation, listing, attachment upload/download/soft-delete functions pass | `server/tests/lab-03/requester-regression.test.ts` | Pass |
 | **UI-01** | Component | AC-01 | Login form validation, busy state spinner, and safe error rendering | Renders email/password errors; displays spinner when in flight | `client/tests/lab-03/Login.test.tsx` | Pass |
 | **UI-02** | Component | AC-02 | Change Password form rules checklist and validation | Checks mark active as rules are satisfied; confirms match | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
 | **UI-03** | Component | FR-08, FR-09 | App shell renders user name, role badge, and role-permitted navigation | Shows Staff navigation for staff, Admin navigation for admin | `client/tests/lab-03/AppShell.test.tsx` | Pass (Requester/IT Staff nav; Admin nav lands in Issue 7) |
@@ -87,7 +87,7 @@ TokTickIT employs an 8-category test strategy in strict compliance with the Lab 
 |---|---|---|
 | **AC-01** (Valid Login & Session) | `API-01`, `UI-01`, `E2E-01` | Planned |
 | **AC-02** (Mandatory Password Change) | `UNIT-01`, `API-06`, `API-07`, `UI-02`, `E2E-02` | Planned |
-| **AC-03** (Requester Identity Isolation) | `API-10`, `API-11`, `REGR-01` | Planned |
+| **AC-03** (Requester Identity Isolation) | `API-10`, `API-11`, `REGR-01` | Pass |
 | **AC-04** (Internal Notes Authorization) | `API-08`, `API-09`, `E2E-04` | Planned |
 | **AC-05** (Staff Ticket Queue Retrieval) | `UNIT-03`, `API-12`, `API-13`, `API-14`, `API-15`, `UI-04`, `E2E-03` | Planned |
 | **AC-06** (Ticket Ownership Assignment) | `API-16`, `API-17`, `API-18`, `UI-05`, `E2E-03` | Planned |

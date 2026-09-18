@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { RequesterProvider, useRequester } from '../../src/context/RequesterContext';
+import { AuthProvider } from '../../src/context/AuthContext';
 import { MyTickets } from '../../src/screens/MyTickets';
 
 const mockCategories = [
@@ -10,18 +10,12 @@ const mockCategories = [
   { id: 2, name: 'Hardware' },
 ];
 
-const requesterA = {
+const mockAuthUser = {
   id: 1,
   name: 'Jennifer Anderson',
   email: 'jennifer.anderson@example.com',
-  isActive: true,
-};
-
-const requesterB = {
-  id: 2,
-  name: 'Michael Chen',
-  email: 'michael.chen@example.com',
-  isActive: true,
+  role: 'REQUESTER',
+  mustChangePassword: false,
 };
 
 function makeTicket(overrides: Partial<Record<string, unknown>> = {}) {
@@ -29,11 +23,13 @@ function makeTicket(overrides: Partial<Record<string, unknown>> = {}) {
     id: 1,
     ticketNumber: 'TKT-2026-000001',
     summary: 'Laptop battery drains quickly',
-    categoryId: 1,
-    categoryName: 'Hardware',
+    category: { id: 2, name: 'Hardware' },
+    relatedSystem: { id: 1, name: 'Corporate Laptop' },
     requestedPriority: 'MEDIUM',
-    itPriority: null,
+    itPriority: 'MEDIUM',
     currentStatus: 'NEW',
+    requesterResolvedIndicator: false,
+    owner: null,
     createdAt: '2026-08-20T09:14:00.000Z',
     updatedAt: '2026-08-20T09:14:00.000Z',
     ...overrides,
@@ -54,30 +50,30 @@ async function findInTable(text: string) {
 function renderMyTickets() {
   return render(
     <MemoryRouter initialEntries={['/tickets']}>
-      <RequesterProvider>
+      <AuthProvider>
         <Routes>
           <Route path="/tickets" element={<MyTickets />} />
           <Route path="/tickets/new" element={<div>Create Ticket Screen</div>} />
           <Route path="/tickets/:id" element={<div>Ticket Detail Screen</div>} />
         </Routes>
-      </RequesterProvider>
+      </AuthProvider>
     </MemoryRouter>,
   );
 }
 
-describe('UI-07..UI-10: My Tickets Screen', () => {
+describe('UI-07, UI-09..UI-11: My Tickets Screen (regression under real auth, FR-11)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    sessionStorage.clear();
   });
 
-  function stubFetch(
-    ticketsHandler: (url: string, init?: RequestInit) => Promise<Response>,
-  ) {
+  function stubFetch(ticketsHandler: (url: string, init?: RequestInit) => Promise<Response>) {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes('/api/auth/me')) {
+          return Promise.resolve({ ok: true, json: async () => ({ user: mockAuthUser }) } as Response);
+        }
         if (url.includes('/api/categories')) {
           return Promise.resolve({ ok: true, json: async () => mockCategories } as Response);
         }
@@ -90,7 +86,6 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
   }
 
   it('UI-07: renders Empty state vs No-results state distinctly', async () => {
-    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(requesterA));
     stubFetch(() => Promise.resolve({ ok: true, json: async () => emptyResponse() } as Response));
 
     renderMyTickets();
@@ -100,77 +95,47 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
     fireEvent.change(screen.getByLabelText('Category'), { target: { value: '1' } });
 
     expect(await screen.findByText(/No tickets match your filters/i)).toBeInTheDocument();
-    // Empty-state copy must not still be shown once a filter narrows the (still zero) results.
     expect(screen.queryByText(/haven't created any tickets yet/i)).not.toBeInTheDocument();
   });
 
-  it('UI-08: re-fetches under the new identity when the acting Requester changes, clearing old rows first', async () => {
-    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(requesterA));
+  it('scopes the greeting and requests to the authenticated user, with no dev-selector in sight', async () => {
+    stubFetch(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ data: [makeTicket()], meta: { page: 1, pageSize: 10, totalCount: 1, totalPages: 1 } }),
+      } as Response),
+    );
 
-    let resolveB: (value: Response) => void = () => {};
-    const pendingB = new Promise<Response>((resolve) => {
-      resolveB = resolve;
-    });
+    renderMyTickets();
 
-    stubFetch((_url, init) => {
-      const headers = init?.headers as Record<string, string>;
-      if (headers?.['x-requester-id'] === String(requesterB.id)) {
-        return pendingB;
-      }
-      return Promise.resolve({
+    expect(await screen.findByText(/scoped to Jennifer Anderson/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Change Requester/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Select Development Requester/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the nested category from the response and every status badge without crashing', async () => {
+    stubFetch(() =>
+      Promise.resolve({
         ok: true,
         json: async () => ({
-          data: [makeTicket({ summary: 'Requester A ticket' })],
-          meta: { page: 1, pageSize: 10, totalCount: 1, totalPages: 1 },
+          data: [
+            makeTicket({ id: 1, ticketNumber: 'TKT-2026-000001', currentStatus: 'IN_PROGRESS' }),
+            makeTicket({ id: 2, ticketNumber: 'TKT-2026-000002', currentStatus: 'WAITING_FOR_REQUESTER' }),
+          ],
+          meta: { page: 1, pageSize: 10, totalCount: 2, totalPages: 1 },
         }),
-      } as Response);
-    });
-
-    function SwitchToBButton() {
-      const { selectRequester } = useRequester();
-      return <button onClick={() => selectRequester(requesterB)}>Switch to B</button>;
-    }
-
-    render(
-      <MemoryRouter initialEntries={['/tickets']}>
-        <RequesterProvider>
-          <SwitchToBButton />
-          <MyTickets />
-        </RequesterProvider>
-      </MemoryRouter>,
+      } as Response),
     );
 
-    expect(await findInTable('Requester A ticket')).toBeInTheDocument();
+    renderMyTickets();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to B' }));
-
-    // Old rows are cleared (loading state shown) before Requester B's data arrives (BR-06, AC-12).
-    await waitFor(() => {
-      expect(screen.queryByText('Requester A ticket')).not.toBeInTheDocument();
-    });
-    expect(screen.getByText(/Loading your tickets/i)).toBeInTheDocument();
-
-    resolveB({
-      ok: true,
-      json: async () => ({
-        data: [makeTicket({ id: 2, ticketNumber: 'TKT-2026-000002', summary: 'Requester B ticket' })],
-        meta: { page: 1, pageSize: 10, totalCount: 1, totalPages: 1 },
-      }),
-    } as Response);
-
-    expect(await findInTable('Requester B ticket')).toBeInTheDocument();
-
-    const ticketCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((call: any[]) =>
-      (call[0] as string).includes('/api/tickets'),
-    );
-    const lastCall = ticketCalls[ticketCalls.length - 1];
-    const lastHeaders = lastCall[1]?.headers as Record<string, string>;
-    expect(lastHeaders['x-requester-id']).toBe(String(requesterB.id));
+    const table = await screen.findByTestId('my-tickets-table');
+    expect(await within(table).findAllByText('Hardware')).toHaveLength(2);
+    expect(await findInTable('In Progress')).toBeInTheDocument();
+    expect(await findInTable('Waiting for Requester')).toBeInTheDocument();
   });
 
   it('UI-09: pagination and sort controls update query params and re-render', async () => {
-    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(requesterA));
-
     stubFetch((url) => {
       const params = new URL(url).searchParams;
       if (params.get('page') === '2') {
@@ -212,15 +177,14 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
       );
       expect(
         ticketCalls.some(
-          (call: any[]) => (call[0] as string).includes('sortBy=ticketNumber') && (call[0] as string).includes('sortOrder=asc'),
+          (call: any[]) =>
+            (call[0] as string).includes('sortBy=ticketNumber') && (call[0] as string).includes('sortOrder=asc'),
         ),
       ).toBe(true);
     });
   });
 
   it('UI-10: API-failure state shows a Retry action instead of a blank or crashed screen', async () => {
-    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(requesterA));
-
     let callCount = 0;
     stubFetch(() => {
       callCount += 1;
@@ -248,8 +212,6 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
   });
 
   it('UI-11: ignores stale responses when rapid page transitions occur', async () => {
-    sessionStorage.setItem('toktickit.actingRequester', JSON.stringify(requesterA));
-
     let resolvePage2: (value: Response) => void = () => {};
     const pendingPage2 = new Promise<Response>((resolve) => {
       resolvePage2 = resolve;
@@ -282,16 +244,11 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
 
     expect(await findInTable('Page one ticket')).toBeInTheDocument();
 
-    // User clicks page 2
     fireEvent.click(screen.getByRole('button', { name: '2' }));
-
-    // User quickly clicks page 3 before page 2 resolves
     fireEvent.click(screen.getByRole('button', { name: '3' }));
 
-    // Page 3 resolves first
     expect(await findInTable('Page three ticket')).toBeInTheDocument();
 
-    // Now page 2 resolves late
     resolvePage2({
       ok: true,
       json: async () => ({
@@ -300,10 +257,8 @@ describe('UI-07..UI-10: My Tickets Screen', () => {
       }),
     } as Response);
 
-    // Stale page 2 response must NOT overwrite page 3 data
     await new Promise((r) => setTimeout(r, 50));
     expect(await findInTable('Page three ticket')).toBeInTheDocument();
     expect(screen.queryByText('Page two stale ticket')).not.toBeInTheDocument();
   });
 });
-

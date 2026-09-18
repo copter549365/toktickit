@@ -27,10 +27,16 @@ describe('UI-15: Badge', () => {
     expect(badge).toHaveClass('badge-status-new');
   });
 
-  it('renders IT Priority as "Not yet triaged" regardless of ticket data (BR-10)', () => {
-    render(<Badge kind="itPriority" />);
+  it('renders IT Priority as "Not yet triaged" when no priority has been assigned', () => {
+    render(<Badge kind="itPriority" value={null} />);
     const badge = screen.getByText('Not yet triaged');
     expect(badge).toHaveClass('badge-triage-pending');
+  });
+
+  it('renders IT Priority with the assigned value once triaged', () => {
+    render(<Badge kind="itPriority" value="HIGH" />);
+    const badge = screen.getByText('High');
+    expect(badge).toHaveClass('badge-priority-high');
   });
 
   it('always pairs color with a readable text label, never color alone', () => {

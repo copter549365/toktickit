@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../../src/context/AuthContext';
-import { RequesterProvider } from '../../src/context/RequesterContext';
 import { RequireAuth } from '../../src/components/RequireAuth';
 import { AppShell } from '../../src/components/AppShell';
 
@@ -20,17 +19,15 @@ function renderShell(meResponse: unknown, extraMock?: () => Response) {
   render(
     <MemoryRouter initialEntries={['/tickets']}>
       <AuthProvider>
-        <RequesterProvider>
-          <Routes>
-            <Route path="/login" element={<div>Login Marker</div>} />
-            <Route path="/change-password" element={<div>Change Password Marker</div>} />
-            <Route element={<RequireAuth />}>
-              <Route element={<AppShell />}>
-                <Route path="tickets" element={<div>My Tickets Marker</div>} />
-              </Route>
+        <Routes>
+          <Route path="/login" element={<div>Login Marker</div>} />
+          <Route path="/change-password" element={<div>Change Password Marker</div>} />
+          <Route element={<RequireAuth />}>
+            <Route element={<AppShell />}>
+              <Route path="tickets" element={<div>My Tickets Marker</div>} />
             </Route>
-          </Routes>
-        </RequesterProvider>
+          </Route>
+        </Routes>
       </AuthProvider>
     </MemoryRouter>,
   );
