@@ -19,6 +19,7 @@
   --color-success: #0b7a46;
   /* Lab 3 addition (docs/lab-03/ui-spec.md §1) */
   --color-text-muted: #5c6b64;
+  --color-warning-pale: #fffbeb;
 
   /* Spacing / typography (ui-spec.md §2) */
   --zg-space-unit: 8px;
@@ -351,4 +352,30 @@ body {
 .zg-shell-header .btn-zg-secondary:focus {
   background-color: rgba(255, 255, 255, 0.15);
   color: #ffffff;
+}
+
+/* ---- IT Staff Ticket Detail: Internal Notes distinction (docs/lab-03/ui-spec.md §5.6) ---- */
+
+.zg-internal-notes-panel {
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning);
+  border-radius: 6px;
+}
+
+.zg-internal-notes-banner {
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  border-radius: 4px;
+  padding: calc(var(--zg-space-unit) * 1.5) calc(var(--zg-space-unit) * 2);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.zg-resolution-banner {
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning);
+  color: var(--color-text);
+  border-radius: 4px;
+  padding: calc(var(--zg-space-unit) * 1.5) calc(var(--zg-space-unit) * 2);
 }

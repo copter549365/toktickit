@@ -1,4 +1,38 @@
 import type { Priority, TicketStatus } from './ticket';
+import type { Attachment } from './attachment';
+
+export interface StaffMember {
+  id: number;
+  name: string;
+  email: string;
+  role: 'IT_STAFF' | 'ADMINISTRATOR';
+}
+
+export interface StaffTicketDetailData {
+  id: number;
+  ticketNumber: string;
+  requester: { id: number; name: string; email: string };
+  categoryId: number;
+  categoryName: string;
+  relatedSystemId: number;
+  relatedSystemName: string;
+  summary: string;
+  description: string;
+  requestedPriority: Priority;
+  itPriority: Priority | null;
+  currentStatus: TicketStatus;
+  permittedNextStatuses: TicketStatus[];
+  ticketOwnerId: number | null;
+  owner: { id: number; name: string; email: string } | null;
+  requesterResolvedIndicator: boolean;
+  resolutionSummary: string | null;
+  reopenReason: string | null;
+  publicCommentsCount: number;
+  internalNotesCount: number;
+  createdAt: string;
+  updatedAt: string;
+  attachments: Attachment[];
+}
 
 export type StaffQueueSortField =
   | 'createdAt'

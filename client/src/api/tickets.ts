@@ -7,7 +7,7 @@ import type {
   TicketListResponse,
 } from '../types/ticket';
 import type { Attachment } from '../types/attachment';
-import type { PublicComment } from '../types/comment';
+import type { PublicComment, InternalNote } from '../types/comment';
 
 export interface ApiErrorResponse {
   error: string;
@@ -163,6 +163,35 @@ export async function fetchComments(ticketId: number): Promise<PublicComment[]> 
 /** POST /api/tickets/:id/comments (ui-spec.md §5.4, BR-04, BR-14, BR-15). */
 export async function postComment(ticketId: number, content: string): Promise<PublicComment> {
   const response = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: JSON_REQUEST_HEADERS,
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorResponse(response));
+  }
+
+  return response.json();
+}
+
+/** GET /api/tickets/:id/notes (ui-spec.md §5.6, BR-05). IT Staff/Administrator only. */
+export async function fetchNotes(ticketId: number): Promise<InternalNote[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/notes`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorResponse(response));
+  }
+
+  return response.json();
+}
+
+/** POST /api/tickets/:id/notes (ui-spec.md §5.6, BR-05, BR-14, BR-15). IT Staff/Administrator only. */
+export async function postNote(ticketId: number, content: string): Promise<InternalNote> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/notes`, {
     method: 'POST',
     credentials: 'include',
     headers: JSON_REQUEST_HEADERS,
