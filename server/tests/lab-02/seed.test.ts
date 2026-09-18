@@ -26,7 +26,8 @@ describe('DB-01: Lab 2 Seed Data', () => {
   });
 
   it('seeds at least 4 active development requesters and at least 1 inactive one', async () => {
-    const requesters = await prisma.requesterUser.findMany({
+    const requesters = await prisma.user.findMany({
+      where: { role: 'REQUESTER' },
       orderBy: { id: 'asc' },
     });
 
@@ -43,14 +44,14 @@ describe('DB-01: Lab 2 Seed Data', () => {
   it('running the seed again does not duplicate related systems or requesters (idempotent)', async () => {
     const [beforeSystems, beforeRequesters] = await Promise.all([
       prisma.relatedSystem.count(),
-      prisma.requesterUser.count(),
+      prisma.user.count({ where: { role: 'REQUESTER' } }),
     ]);
 
     execSync('npx prisma db seed', { cwd: projectRoot, stdio: 'inherit' });
 
     const [afterSystems, afterRequesters] = await Promise.all([
       prisma.relatedSystem.count(),
-      prisma.requesterUser.count(),
+      prisma.user.count({ where: { role: 'REQUESTER' } }),
     ]);
 
     expect(afterSystems).toBe(beforeSystems);

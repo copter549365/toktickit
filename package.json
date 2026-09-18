@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
+    "@types/bcrypt": "^6.0.0",
+    "bcrypt": "^6.0.0",
     "pg": "^8.13.3"
   }
 }
