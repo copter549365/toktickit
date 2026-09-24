@@ -64,6 +64,7 @@ const upload = multer({
 
 export interface AuthenticatedUser {
   id: number;
+  name: string;
   email: string;
   role: 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
   mustChangePassword: boolean;
@@ -83,7 +84,13 @@ function enforceJsonRequestSecurity(req: Request, res: Response, next: NextFunct
 }
 
 // requireAuth (api-spec.md §0.2): verifies the session cookie and attaches req.user.
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+//
+// The token only proves *which* account made the request — role, isActive, and
+// mustChangePassword are re-read from the database on every request rather than
+// trusted from the (up to 8h old) JWT payload. Otherwise an Administrator
+// deactivating/demoting/resetting a user's password has no effect until that
+// user's token happens to expire (PR #50 review, BR-09/BR-18/BR-19).
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.cookies?.[SESSION_COOKIE_NAME];
   if (!token || typeof token !== 'string') {
     res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Authentication is required.' });
@@ -96,13 +103,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  (req as any).user = {
-    id: payload.userId,
-    email: payload.email,
-    role: payload.role,
-    mustChangePassword: payload.mustChangePassword,
-  } satisfies AuthenticatedUser;
-  next();
+  try {
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user || !user.isActive) {
+      res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
+      return;
+    }
+
+    (req as any).user = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    } satisfies AuthenticatedUser;
+    next();
+  } catch (error) {
+    console.error('Error verifying session:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
 }
 
 // requirePasswordChangeCompleted (api-spec.md §0.2): blocks users flagged
@@ -201,29 +220,9 @@ app.post('/api/auth/logout', enforceJsonRequestSecurity, (_req: Request, res: Re
 });
 
 // Current User Endpoint (api-spec.md §1 "GET /api/auth/me")
-app.get('/api/auth/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const authUser = (req as any).user as AuthenticatedUser;
-    const user = await prisma.user.findUnique({ where: { id: authUser.id } });
-
-    if (!user) {
-      res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
-      return;
-    }
-
-    res.status(200).json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        mustChangePassword: user.mustChangePassword,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching current user:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
+app.get('/api/auth/me', requireAuth, (req: Request, res: Response): void => {
+  const authUser = (req as any).user as AuthenticatedUser;
+  res.status(200).json({ user: authUser });
 });
 
 // Change Password Endpoint (api-spec.md §1 "POST /api/auth/change-password")

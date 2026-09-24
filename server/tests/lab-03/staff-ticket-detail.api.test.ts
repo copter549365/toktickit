@@ -40,15 +40,15 @@ beforeAll(async () => {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const u = await prisma.user.upsert({
     where: { email: EMAIL },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Resolve Indicator Requester', email: EMAIL, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Resolve Indicator Requester', email: EMAIL, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   requester = { id: u.id };
 
   const s1 = await prisma.user.upsert({
     where: { email: EMAIL_STAFF },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Staff Detail Tester', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Staff Detail Tester', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
   });
   const s2 = await prisma.user.upsert({
     where: { email: EMAIL_STAFF_2 },
@@ -64,8 +64,6 @@ beforeAll(async () => {
   staff2 = { id: s2.id, email: s2.email };
   staffInactive = { id: s3.id, email: s3.email };
 
-  // mustChangePassword stays true on the database row (see requester-regression.test.ts's file
-  // comment for why) — the test session carries mustChangePassword=false as a JWT claim only.
   cookie = sessionCookieFor({ id: u.id, email: u.email }, 'REQUESTER');
   cookieStaff = sessionCookieFor(staff, 'IT_STAFF');
 

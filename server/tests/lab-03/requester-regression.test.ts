@@ -6,11 +6,11 @@
  * header onto the real authenticated session (FR-10, FR-11, BR-03, AC-03).
  *
  * Two disposable Requester fixtures are used (never seeded fixtures) so mutations here never
- * leak into other suites. Their database rows keep mustChangePassword=true (so a concurrent
- * worker scanning the whole User table, e.g. tests/lab-03/migration.test.ts, never observes a
- * false row); the session cookie is minted directly with signSessionToken instead of going
- * through POST /api/auth/login, since requirePasswordChangeCompleted only ever reads the JWT
- * claim, never the database.
+ * leak into other suites. Their database rows are seeded with mustChangePassword=false — safe
+ * because server/vitest.config.ts runs test files sequentially and this file's afterAll deletes
+ * both fixtures, so tests/lab-03/migration.test.ts's whole-table scan never observes them. The
+ * session cookie is minted directly with signSessionToken instead of going through
+ * POST /api/auth/login purely to skip re-deriving the password hash per test.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -46,18 +46,18 @@ beforeAll(async () => {
 
   const a = await prisma.user.upsert({
     where: { email: EMAIL_A },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Regression Requester A', email: EMAIL_A, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Regression Requester A', email: EMAIL_A, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   const b = await prisma.user.upsert({
     where: { email: EMAIL_B },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Regression Requester B', email: EMAIL_B, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Regression Requester B', email: EMAIL_B, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   const s = await prisma.user.upsert({
     where: { email: EMAIL_STAFF },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Regression IT Staff', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Regression IT Staff', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
   });
   requesterA = { id: a.id };
   requesterB = { id: b.id };

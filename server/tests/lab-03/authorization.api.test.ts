@@ -25,8 +25,9 @@ let categoryId: number;
 let relatedSystemId: number;
 const createdTicketIds: number[] = [];
 
-// mustChangePassword stays true on the database row (see requester-regression.test.ts's file
-// comment for why) — the test session carries mustChangePassword=false as a JWT claim only.
+// requireAuth re-reads mustChangePassword from the database on every request (PR #50 review),
+// so these fixtures are created with mustChangePassword=false directly rather than forging a
+// mismatched JWT claim.
 function sessionCookieFor(user: { id: number; email: string }): string {
   const token = signSessionToken({ userId: user.id, email: user.email, role: 'REQUESTER', mustChangePassword: false });
   return `toktickit_session=${token}`;
@@ -36,13 +37,13 @@ beforeAll(async () => {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const a = await prisma.user.upsert({
     where: { email: EMAIL_A },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Authz Requester A', email: EMAIL_A, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Authz Requester A', email: EMAIL_A, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   const b = await prisma.user.upsert({
     where: { email: EMAIL_B },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Authz Requester B', email: EMAIL_B, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Authz Requester B', email: EMAIL_B, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   requesterA = { id: a.id };
   requesterB = { id: b.id };

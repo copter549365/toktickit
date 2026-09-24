@@ -39,23 +39,23 @@ beforeAll(async () => {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const a1 = await prisma.user.upsert({
     where: { email: EMAIL_ADMIN },
-    update: { passwordHash, mustChangePassword: true, isActive: true, role: 'ADMINISTRATOR' },
-    create: { name: 'Users Admin Tester', email: EMAIL_ADMIN, passwordHash, role: 'ADMINISTRATOR', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true, role: 'ADMINISTRATOR' },
+    create: { name: 'Users Admin Tester', email: EMAIL_ADMIN, passwordHash, role: 'ADMINISTRATOR', isActive: true, mustChangePassword: false },
   });
   const a2 = await prisma.user.upsert({
     where: { email: EMAIL_ADMIN_2 },
-    update: { passwordHash, mustChangePassword: true, isActive: true, role: 'ADMINISTRATOR' },
-    create: { name: 'Users Admin Tester Two', email: EMAIL_ADMIN_2, passwordHash, role: 'ADMINISTRATOR', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true, role: 'ADMINISTRATOR' },
+    create: { name: 'Users Admin Tester Two', email: EMAIL_ADMIN_2, passwordHash, role: 'ADMINISTRATOR', isActive: true, mustChangePassword: false },
   });
   const s = await prisma.user.upsert({
     where: { email: EMAIL_STAFF },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Users Admin IT Staff', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Users Admin IT Staff', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
   });
   const r = await prisma.user.upsert({
     where: { email: EMAIL_REQUESTER },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Users Admin Requester', email: EMAIL_REQUESTER, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Users Admin Requester', email: EMAIL_REQUESTER, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   admin = { id: a1.id, email: a1.email };
   admin2 = { id: a2.id, email: a2.email };
@@ -175,12 +175,12 @@ describe('API-28: Self-deactivation prevention (AC-12, BR-18)', () => {
 });
 
 describe('API-29: Last active Administrator protection (AC-13, BR-19)', () => {
-  // Isolated per-test: deactivate every OTHER active Administrator in the (shared) database
-  // directly (bypassing the API — this DB may already have seeded admins) so `admin2` is
-  // provably the sole remaining active Administrator, then act as `admin` (its session JWT
-  // still decodes fine even though its DB row is now inactive — requireAuth only reads the
-  // token) against `admin2` as the *target*. Acting user !== target user, so this exercises
-  // BR-19 on its own, independent of the BR-18 self-deactivation rule.
+  // requireAuth now re-verifies isActive against the database on every request (PR #50
+  // review), so only an admin who is THEMSELVES still active can reach these endpoints at
+  // all — the "last active Administrator" can therefore only ever be the acting admin, never
+  // a third party's target. Isolate `admin2` as that sole active admin (deactivating every
+  // other active Administrator, including the unrelated `admin` fixture, directly against the
+  // DB) and act as `admin2` against itself.
   async function isolateAsSoleActiveAdmin(): Promise<number[]> {
     const others = await prisma.user.findMany({
       where: { role: 'ADMINISTRATOR', isActive: true, id: { not: admin2.id } },
@@ -199,31 +199,13 @@ describe('API-29: Last active Administrator protection (AC-13, BR-19)', () => {
     }
   }
 
-  it('rejects deactivating the last remaining active Administrator', async () => {
+  it('rejects the sole active Administrator demoting themselves away from ADMINISTRATOR', async () => {
     const deactivatedIds = await isolateAsSoleActiveAdmin();
 
     const response = await request(app)
       .patch(`/api/admin/users/${admin2.id}`)
       .set(JSON_HEADERS)
-      .set('Cookie', cookieAdmin)
-      .send({ isActive: false });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBe('LAST_ADMIN_PROTECTION');
-
-    const saved = await prisma.user.findUnique({ where: { id: admin2.id } });
-    expect(saved?.isActive).toBe(true);
-
-    await restoreActiveAdmins(deactivatedIds);
-  });
-
-  it('rejects demoting the last remaining active Administrator away from ADMINISTRATOR', async () => {
-    const deactivatedIds = await isolateAsSoleActiveAdmin();
-
-    const response = await request(app)
-      .patch(`/api/admin/users/${admin2.id}`)
-      .set(JSON_HEADERS)
-      .set('Cookie', cookieAdmin)
+      .set('Cookie', cookieAdmin2)
       .send({ role: 'IT_STAFF' });
 
     expect(response.status).toBe(400);
@@ -231,6 +213,28 @@ describe('API-29: Last active Administrator protection (AC-13, BR-19)', () => {
 
     const saved = await prisma.user.findUnique({ where: { id: admin2.id } });
     expect(saved?.role).toBe('ADMINISTRATOR');
+
+    await restoreActiveAdmins(deactivatedIds);
+  });
+
+  // Self-deactivation of the sole active admin is still rejected, but BR-18's self-deactivation
+  // guard fires before BR-19's last-admin check is ever reached — both rules agree the request
+  // must fail, and together they fully cover AC-13's "attempting to deactivate... that
+  // Administrator" clause.
+  it('rejects the sole active Administrator deactivating themselves', async () => {
+    const deactivatedIds = await isolateAsSoleActiveAdmin();
+
+    const response = await request(app)
+      .patch(`/api/admin/users/${admin2.id}`)
+      .set(JSON_HEADERS)
+      .set('Cookie', cookieAdmin2)
+      .send({ isActive: false });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('SELF_DEACTIVATION_PROHIBITED');
+
+    const saved = await prisma.user.findUnique({ where: { id: admin2.id } });
+    expect(saved?.isActive).toBe(true);
 
     await restoreActiveAdmins(deactivatedIds);
   });
@@ -260,6 +264,95 @@ describe('API-30: POST /api/admin/users/:id/reset-password (FR-25, BR-09)', () =
       .send({ newInitialPassword: 'weak' });
 
     expect(response.status).toBe(400);
+  });
+});
+
+// API-35: requireAuth re-reads isActive/role/mustChangePassword from the database on every
+// request, so an Administrator's deactivate/demote/reset-password action takes effect on the
+// target's next request rather than waiting up to 8h for their JWT to expire (PR #50 review).
+// Each fixture here logs in for real (POST /api/auth/login) to hold a genuine, already-issued
+// session cookie before the Administrator acts on it.
+describe('API-35: Administrator actions immediately affect an already-authenticated session', () => {
+  async function loginAndGetCookie(email: string, password: string): Promise<string> {
+    const response = await request(app).post('/api/auth/login').set(JSON_HEADERS).send({ email, password });
+    expect(response.status).toBe(200);
+    const raw = response.headers['set-cookie'];
+    const cookies: string[] = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const sessionCookie = cookies.find((c) => c.startsWith('toktickit_session='));
+    expect(sessionCookie).toBeDefined();
+    return sessionCookie!.split(';')[0];
+  }
+
+  it('deactivating a user blocks their existing session on the next request', async () => {
+    const email = `session-revoke-deactivate-${Date.now()}@toktickit.com`;
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const target = await prisma.user.create({
+      data: { name: 'Session Revoke Deactivate', email, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
+    });
+    createdUserIds.push(target.id);
+    const targetCookie = await loginAndGetCookie(email, PASSWORD);
+
+    const before = await request(app).get('/api/auth/me').set('Cookie', targetCookie);
+    expect(before.status).toBe(200);
+
+    const deactivateResponse = await request(app)
+      .patch(`/api/admin/users/${target.id}`)
+      .set(JSON_HEADERS)
+      .set('Cookie', cookieAdmin)
+      .send({ isActive: false });
+    expect(deactivateResponse.status).toBe(200);
+
+    const after = await request(app).get('/api/auth/me').set('Cookie', targetCookie);
+    expect(after.status).toBe(401);
+    expect(after.body.error).toBe('MISSING_OR_INVALID_TOKEN');
+  });
+
+  it('resetting a password forces the existing session into the password-change gate on its next request', async () => {
+    const email = `session-revoke-reset-${Date.now()}@toktickit.com`;
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const target = await prisma.user.create({
+      data: { name: 'Session Revoke Reset', email, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
+    });
+    createdUserIds.push(target.id);
+    const targetCookie = await loginAndGetCookie(email, PASSWORD);
+
+    const before = await request(app).get('/api/tickets').set('Cookie', targetCookie);
+    expect(before.status).toBe(200);
+
+    const resetResponse = await request(app)
+      .post(`/api/admin/users/${target.id}/reset-password`)
+      .set(JSON_HEADERS)
+      .set('Cookie', cookieAdmin)
+      .send({ newInitialPassword: 'BrandNewTemp789!' });
+    expect(resetResponse.status).toBe(200);
+
+    const after = await request(app).get('/api/tickets').set('Cookie', targetCookie);
+    expect(after.status).toBe(403);
+    expect(after.body.error).toBe('PASSWORD_CHANGE_REQUIRED');
+  });
+
+  it('demoting a user immediately downgrades their existing session\'s effective role', async () => {
+    const email = `session-revoke-demote-${Date.now()}@toktickit.com`;
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const target = await prisma.user.create({
+      data: { name: 'Session Revoke Demote', email, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
+    });
+    createdUserIds.push(target.id);
+    const targetCookie = await loginAndGetCookie(email, PASSWORD);
+
+    const before = await request(app).get('/api/staff/tickets').set('Cookie', targetCookie);
+    expect(before.status).toBe(200);
+
+    const demoteResponse = await request(app)
+      .patch(`/api/admin/users/${target.id}`)
+      .set(JSON_HEADERS)
+      .set('Cookie', cookieAdmin)
+      .send({ role: 'REQUESTER' });
+    expect(demoteResponse.status).toBe(200);
+
+    const after = await request(app).get('/api/staff/tickets').set('Cookie', targetCookie);
+    expect(after.status).toBe(403);
+    expect(after.body.error).toBe('FORBIDDEN_ROLE');
   });
 });
 
