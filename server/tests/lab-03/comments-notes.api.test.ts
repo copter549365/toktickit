@@ -23,8 +23,9 @@ let cookieRequester: string;
 let cookieStaff: string;
 let ticket: { id: number };
 
-// mustChangePassword stays true on the database row (see requester-regression.test.ts's file
-// comment for why) — the test session carries mustChangePassword=false as a JWT claim only.
+// requireAuth re-reads mustChangePassword from the database on every request (PR #50 review),
+// so these fixtures are created with mustChangePassword=false directly rather than forging a
+// mismatched JWT claim.
 function sessionCookieFor(user: { id: number; email: string; role: 'REQUESTER' | 'IT_STAFF' }): string {
   const token = signSessionToken({ userId: user.id, email: user.email, role: user.role, mustChangePassword: false });
   return `toktickit_session=${token}`;
@@ -34,13 +35,13 @@ beforeAll(async () => {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const r = await prisma.user.upsert({
     where: { email: EMAIL_REQUESTER },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Comments Requester', email: EMAIL_REQUESTER, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Comments Requester', email: EMAIL_REQUESTER, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
   });
   const s = await prisma.user.upsert({
     where: { email: EMAIL_STAFF },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Comments IT Staff', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Comments IT Staff', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
   });
   requester = { id: r.id };
   staff = { id: s.id };

@@ -61,7 +61,7 @@ function stubFetch(handlers: {
     if (url.includes('/api/auth/me')) {
       return Promise.resolve(jsonResponse({ user: mockAuthUser }));
     }
-    if (url.includes('/api/staff/members')) {
+    if (url.includes('/api/staff/users')) {
       return Promise.resolve(jsonResponse(mockStaffMembers));
     }
     const extra = handlers.extra?.(url, init);
@@ -299,7 +299,7 @@ describe('UI-05/UI-06: IT Staff Ticket Detail (AC-06, AC-07, AC-08, AC-09, BR-04
       renderDetail();
 
       expect(await screen.findByText(/Visible ONLY to IT Staff and Administrators/i)).toBeInTheDocument();
-      expect(screen.getByText('Escalated to vendor.')).toBeInTheDocument();
+      expect(await screen.findByText('Escalated to vendor.')).toBeInTheDocument();
 
       const notesSection = screen.getByTestId('internal-notes-section');
       expect(notesSection).toHaveClass('zg-internal-notes-panel');

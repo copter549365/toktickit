@@ -6,7 +6,13 @@ import multer from 'multer';
 import fs from 'fs';
 import { prisma } from './db.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
-import { validateTicketInputFields, validateRemovalReason, validateCommentContent } from './utils/validation.js';
+import {
+  validateTicketInputFields,
+  validateRemovalReason,
+  validateCommentContent,
+  validateUserName,
+  isValidUserRole,
+} from './utils/validation.js';
 import {
   normalizeTicketListQuery,
   normalizeStaffQueueQuery,
@@ -58,6 +64,7 @@ const upload = multer({
 
 export interface AuthenticatedUser {
   id: number;
+  name: string;
   email: string;
   role: 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
   mustChangePassword: boolean;
@@ -77,7 +84,13 @@ function enforceJsonRequestSecurity(req: Request, res: Response, next: NextFunct
 }
 
 // requireAuth (api-spec.md §0.2): verifies the session cookie and attaches req.user.
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+//
+// The token only proves *which* account made the request — role, isActive, and
+// mustChangePassword are re-read from the database on every request rather than
+// trusted from the (up to 8h old) JWT payload. Otherwise an Administrator
+// deactivating/demoting/resetting a user's password has no effect until that
+// user's token happens to expire (PR #50 review, BR-09/BR-18/BR-19).
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.cookies?.[SESSION_COOKIE_NAME];
   if (!token || typeof token !== 'string') {
     res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Authentication is required.' });
@@ -90,13 +103,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  (req as any).user = {
-    id: payload.userId,
-    email: payload.email,
-    role: payload.role,
-    mustChangePassword: payload.mustChangePassword,
-  } satisfies AuthenticatedUser;
-  next();
+  try {
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user || !user.isActive) {
+      res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
+      return;
+    }
+
+    (req as any).user = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    } satisfies AuthenticatedUser;
+    next();
+  } catch (error) {
+    console.error('Error verifying session:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
 }
 
 // requirePasswordChangeCompleted (api-spec.md §0.2): blocks users flagged
@@ -195,29 +220,9 @@ app.post('/api/auth/logout', enforceJsonRequestSecurity, (_req: Request, res: Re
 });
 
 // Current User Endpoint (api-spec.md §1 "GET /api/auth/me")
-app.get('/api/auth/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const authUser = (req as any).user as AuthenticatedUser;
-    const user = await prisma.user.findUnique({ where: { id: authUser.id } });
-
-    if (!user) {
-      res.status(401).json({ error: 'MISSING_OR_INVALID_TOKEN', message: 'Your session is invalid or has expired.' });
-      return;
-    }
-
-    res.status(200).json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        mustChangePassword: user.mustChangePassword,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching current user:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
+app.get('/api/auth/me', requireAuth, (req: Request, res: Response): void => {
+  const authUser = (req as any).user as AuthenticatedUser;
+  res.status(200).json({ user: authUser });
 });
 
 // Change Password Endpoint (api-spec.md §1 "POST /api/auth/change-password")
@@ -1121,7 +1126,7 @@ app.delete(
 // Active Staff Members Endpoint — reference data for the Ticket Owner reassignment
 // dropdown (ui-spec.md §5.6 "Dropdown of active IT Staff and Admins").
 app.get(
-  '/api/staff/members',
+  '/api/staff/users',
   requireAuth,
   requirePasswordChangeCompleted,
   requireRole('IT_STAFF', 'ADMINISTRATOR'),
@@ -1476,6 +1481,296 @@ app.patch(
       });
     } catch (error) {
       console.error('Error updating ticket status:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Administrator User Management (api-spec.md §6, BR-16..BR-20)
+async function wouldRemoveLastActiveAdministrator(
+  targetUser: { id: number; role: string; isActive: boolean },
+  nextRole: string,
+  nextIsActive: boolean,
+): Promise<boolean> {
+  const wasActiveAdmin = targetUser.role === 'ADMINISTRATOR' && targetUser.isActive;
+  if (!wasActiveAdmin) return false;
+
+  const staysActiveAdmin = nextRole === 'ADMINISTRATOR' && nextIsActive;
+  if (staysActiveAdmin) return false;
+
+  const otherActiveAdmins = await prisma.user.count({
+    where: { role: 'ADMINISTRATOR', isActive: true, id: { not: targetUser.id } },
+  });
+  return otherActiveAdmins === 0;
+}
+
+function serializeUser(user: {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: Date;
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
+    createdAt: user.createdAt,
+  };
+}
+
+// User List Endpoint (api-spec.md §6 "GET /api/admin/users")
+app.get(
+  '/api/admin/users',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+      const where: any = {};
+
+      if (search) {
+        const escapedSearch = escapeLikeWildcards(search);
+        where.OR = [
+          { name: { contains: escapedSearch, mode: 'insensitive' } },
+          { email: { contains: escapedSearch, mode: 'insensitive' } },
+        ];
+      }
+
+      if (isValidUserRole(req.query.role)) {
+        where.role = req.query.role;
+      }
+
+      const users = await prisma.user.findMany({
+        where,
+        orderBy: { name: 'asc' },
+      });
+
+      res.status(200).json(users.map(serializeUser));
+    } catch (error) {
+      console.error('Error listing users:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Create User Endpoint (api-spec.md §6 "POST /api/admin/users")
+app.post(
+  '/api/admin/users',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const body = req.body ?? {};
+      const fieldErrors: Record<string, string> = {};
+
+      const nameValidation = validateUserName(body.name);
+      if (!nameValidation.isValid) {
+        fieldErrors.name = nameValidation.error!;
+      }
+
+      if (!isValidEmailFormat(body.email)) {
+        fieldErrors.email = 'A valid email address is required.';
+      }
+
+      if (!isValidUserRole(body.role)) {
+        fieldErrors.role = 'Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR.';
+      }
+
+      const passwordValidation = validatePasswordComplexity(body.initialPassword);
+      if (!passwordValidation.isValid) {
+        fieldErrors.initialPassword = passwordValidation.error!;
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        res.status(400).json({ error: 'VALIDATION_FAILED', message: 'Please correct the highlighted fields.', fieldErrors });
+        return;
+      }
+
+      const trimmedEmail = (body.email as string).trim();
+      const existing = await prisma.user.findFirst({
+        where: { email: { equals: trimmedEmail, mode: 'insensitive' } },
+      });
+      if (existing) {
+        res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', message: 'A user with this email address already exists.' });
+        return;
+      }
+
+      const passwordHash = await hashPassword(body.initialPassword);
+      const isActive = typeof body.isActive === 'boolean' ? body.isActive : true;
+
+      const created = await prisma.user.create({
+        data: {
+          name: nameValidation.trimmed!,
+          email: trimmedEmail,
+          passwordHash,
+          role: body.role,
+          isActive,
+          mustChangePassword: true,
+        },
+      });
+
+      res.status(201).json(serializeUser(created));
+    } catch (error) {
+      console.error('Error creating user:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Update User Endpoint (api-spec.md §6 "PATCH /api/admin/users/:id")
+app.patch(
+  '/api/admin/users/:id',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const targetId = parseInt(req.params.id as string, 10);
+      if (isNaN(targetId)) {
+        res.status(404).json({ error: 'USER_NOT_FOUND' });
+        return;
+      }
+
+      const targetUser = await prisma.user.findUnique({ where: { id: targetId } });
+      if (!targetUser) {
+        res.status(404).json({ error: 'USER_NOT_FOUND' });
+        return;
+      }
+
+      const body = req.body ?? {};
+      const fieldErrors: Record<string, string> = {};
+      const data: { name?: string; email?: string; role?: string; isActive?: boolean } = {};
+
+      if (body.name !== undefined) {
+        const nameValidation = validateUserName(body.name);
+        if (!nameValidation.isValid) {
+          fieldErrors.name = nameValidation.error!;
+        } else {
+          data.name = nameValidation.trimmed;
+        }
+      }
+
+      if (body.email !== undefined) {
+        if (!isValidEmailFormat(body.email)) {
+          fieldErrors.email = 'A valid email address is required.';
+        } else {
+          data.email = (body.email as string).trim();
+        }
+      }
+
+      if (body.role !== undefined) {
+        if (!isValidUserRole(body.role)) {
+          fieldErrors.role = 'Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR.';
+        } else {
+          data.role = body.role;
+        }
+      }
+
+      if (body.isActive !== undefined) {
+        if (typeof body.isActive !== 'boolean') {
+          fieldErrors.isActive = 'isActive must be a boolean.';
+        } else {
+          data.isActive = body.isActive;
+        }
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        res.status(400).json({ error: 'VALIDATION_FAILED', message: 'Please correct the highlighted fields.', fieldErrors });
+        return;
+      }
+
+      // BR-18: an Administrator cannot deactivate their own account.
+      if (targetId === authUser.id && data.isActive === false) {
+        res.status(400).json({
+          error: 'SELF_DEACTIVATION_PROHIBITED',
+          message: 'You cannot deactivate your own account.',
+        });
+        return;
+      }
+
+      // BR-19: the last remaining active Administrator cannot be deactivated or demoted.
+      const nextRole = data.role ?? targetUser.role;
+      const nextIsActive = data.isActive ?? targetUser.isActive;
+      if (await wouldRemoveLastActiveAdministrator(targetUser, nextRole, nextIsActive)) {
+        res.status(400).json({
+          error: 'LAST_ADMIN_PROTECTION',
+          message: 'The last active Administrator cannot be deactivated or have their role changed.',
+        });
+        return;
+      }
+
+      // BR-17: email uniqueness only needs re-checking when the email actually changes.
+      if (data.email && data.email.toLowerCase() !== targetUser.email.toLowerCase()) {
+        const existing = await prisma.user.findFirst({
+          where: { email: { equals: data.email, mode: 'insensitive' }, id: { not: targetId } },
+        });
+        if (existing) {
+          res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', message: 'A user with this email address already exists.' });
+          return;
+        }
+      }
+
+      const updated = await prisma.user.update({ where: { id: targetId }, data });
+
+      res.status(200).json(serializeUser(updated));
+    } catch (error) {
+      console.error('Error updating user:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// Reset Password Endpoint (api-spec.md §6 "POST /api/admin/users/:id/reset-password", FR-25, BR-09)
+app.post(
+  '/api/admin/users/:id/reset-password',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const targetId = parseInt(req.params.id as string, 10);
+      if (isNaN(targetId)) {
+        res.status(404).json({ error: 'USER_NOT_FOUND' });
+        return;
+      }
+
+      const targetUser = await prisma.user.findUnique({ where: { id: targetId } });
+      if (!targetUser) {
+        res.status(404).json({ error: 'USER_NOT_FOUND' });
+        return;
+      }
+
+      const complexity = validatePasswordComplexity(req.body?.newInitialPassword);
+      if (!complexity.isValid) {
+        res.status(400).json({
+          error: 'VALIDATION_FAILED',
+          message: complexity.error,
+          fieldErrors: { newInitialPassword: complexity.error! },
+        });
+        return;
+      }
+
+      const passwordHash = await hashPassword(req.body.newInitialPassword);
+      await prisma.user.update({
+        where: { id: targetId },
+        data: { passwordHash, mustChangePassword: true },
+      });
+
+      res.status(200).json({ message: 'Initial password successfully reset. User must change password at next login.' });
+    } catch (error) {
+      console.error('Error resetting password:', error);
       res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   },

@@ -13,7 +13,6 @@ import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
 import app, { requireAuth, requirePasswordChangeCompleted } from '../../src/app.js';
 import { prisma } from '../../src/db.js';
-import { signSessionToken } from '../../src/utils/auth.js';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
 const INITIAL_PASSWORD = 'InitialPassword123!';
@@ -174,22 +173,22 @@ describe('API-06: requirePasswordChangeCompleted blocks users flagged mustChange
   });
 
   it('allows a user with mustChangePassword=false through the same protected endpoint', async () => {
-    // requirePasswordChangeCompleted only ever reads the JWT claim, never the database, so a
-    // token is minted directly here rather than mutating a shared seeded user's row — flipping
-    // that row (even temporarily) would race with tests/lab-03/migration.test.ts's assertion
-    // that every row in the User table has mustChangePassword=true, in whichever concurrent
-    // worker process happens to observe it mid-flight.
-    const token = signSessionToken({
-      userId: testUserId,
-      email: TEST_EMAIL,
-      role: 'REQUESTER',
-      mustChangePassword: false,
-    });
+    // requireAuth re-reads mustChangePassword from the database on every request (PR #50
+    // review), so the fixture row itself must reflect the state under test. Flipping it
+    // (temporarily) is safe now that server/vitest.config.ts runs test files sequentially —
+    // no other suite's migration.test.ts assertion can observe this row mid-flight.
+    await prisma.user.update({ where: { id: testUserId }, data: { mustChangePassword: false } });
 
-    const response = await request(protectedApp)
-      .get('/api/_protected-test')
-      .set('Cookie', `toktickit_session=${token}`);
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .set(JSON_HEADERS)
+      .send({ email: TEST_EMAIL, password: INITIAL_PASSWORD });
+    const cookie = extractSessionCookie(loginResponse);
+
+    const response = await request(protectedApp).get('/api/_protected-test').set('Cookie', cookie);
     expect(response.status).toBe(200);
+
+    await prisma.user.update({ where: { id: testUserId }, data: { mustChangePassword: true } });
   });
 });
 

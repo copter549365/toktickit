@@ -17,10 +17,12 @@ const PASSWORD = 'StaffQueueTestPassword456!';
 const EMAIL_STAFF = 'staff-queue-it-staff@toktickit.com';
 const EMAIL_STAFF_2 = 'staff-queue-it-staff-2@toktickit.com';
 const EMAIL_REQUESTER = 'staff-queue-requester@toktickit.com';
+const EMAIL_ADMIN = 'staff-queue-admin@toktickit.com';
 
 let staff: { id: number; email: string };
 let staff2: { id: number; email: string };
 let requester: { id: number; email: string };
+let admin: { id: number; email: string };
 let cookieStaff: string;
 let cookieStaff2: string;
 let cookieRequester: string;
@@ -29,9 +31,10 @@ let categoryTwo: { id: number };
 let relatedSystemId: number;
 const createdTicketIds: number[] = [];
 
-// mustChangePassword stays true on every database row (see requester-regression.test.ts's
-// file comment for why) — each test session carries mustChangePassword=false as a JWT claim.
-function sessionCookieFor(user: { id: number; email: string }, role: 'REQUESTER' | 'IT_STAFF'): string {
+// requireAuth re-reads mustChangePassword from the database on every request (PR #50 review),
+// so these fixtures are created with mustChangePassword=false directly rather than forging a
+// mismatched JWT claim.
+function sessionCookieFor(user: { id: number; email: string }, role: 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR'): string {
   const token = signSessionToken({ userId: user.id, email: user.email, role, mustChangePassword: false });
   return `toktickit_session=${token}`;
 }
@@ -42,22 +45,28 @@ beforeAll(async () => {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const s1 = await prisma.user.upsert({
     where: { email: EMAIL_STAFF },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Staff Queue Tester', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Staff Queue Tester', email: EMAIL_STAFF, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
   });
   const s2 = await prisma.user.upsert({
     where: { email: EMAIL_STAFF_2 },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Staff Queue Tester Two', email: EMAIL_STAFF_2, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Staff Queue Tester Two', email: EMAIL_STAFF_2, passwordHash, role: 'IT_STAFF', isActive: true, mustChangePassword: false },
   });
   const r = await prisma.user.upsert({
     where: { email: EMAIL_REQUESTER },
-    update: { passwordHash, mustChangePassword: true, isActive: true },
-    create: { name: 'Staff Queue Requester', email: EMAIL_REQUESTER, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: true },
+    update: { passwordHash, mustChangePassword: false, isActive: true },
+    create: { name: 'Staff Queue Requester', email: EMAIL_REQUESTER, passwordHash, role: 'REQUESTER', isActive: true, mustChangePassword: false },
+  });
+  const a = await prisma.user.upsert({
+    where: { email: EMAIL_ADMIN },
+    update: { passwordHash, mustChangePassword: false, isActive: true, role: 'ADMINISTRATOR' },
+    create: { name: 'Staff Queue Admin', email: EMAIL_ADMIN, passwordHash, role: 'ADMINISTRATOR', isActive: true, mustChangePassword: false },
   });
   staff = { id: s1.id, email: s1.email };
   staff2 = { id: s2.id, email: s2.email };
   requester = { id: r.id, email: r.email };
+  admin = { id: a.id, email: a.email };
 
   cookieStaff = sessionCookieFor(staff, 'IT_STAFF');
   cookieStaff2 = sessionCookieFor(staff2, 'IT_STAFF');
@@ -99,7 +108,7 @@ afterAll(async () => {
   if (createdTicketIds.length > 0) {
     await prisma.ticket.deleteMany({ where: { id: { in: createdTicketIds } } });
   }
-  await prisma.user.deleteMany({ where: { email: { in: [EMAIL_STAFF, EMAIL_STAFF_2, EMAIL_REQUESTER] } } });
+  await prisma.user.deleteMany({ where: { email: { in: [EMAIL_STAFF, EMAIL_STAFF_2, EMAIL_REQUESTER, EMAIL_ADMIN] } } });
   await prisma.$disconnect();
 });
 
@@ -126,13 +135,11 @@ describe('API-12: GET /api/staff/tickets (AC-05, FR-14)', () => {
   });
 
   it('an Administrator may also retrieve the queue', async () => {
-    const admin = await prisma.user.findFirst({ where: { role: 'ADMINISTRATOR', isActive: true } });
-    expect(admin).not.toBeNull();
-    const cookieAdmin = signSessionToken({ userId: admin!.id, email: admin!.email, role: 'ADMINISTRATOR', mustChangePassword: false });
-
+    // requireAuth now re-verifies the acting user against the database on every request
+    // (PR #50 review), so the identity must be a real, active row — not a synthetic id.
     const response = await request(app)
       .get('/api/staff/tickets')
-      .set('Cookie', `toktickit_session=${cookieAdmin}`)
+      .set('Cookie', sessionCookieFor(admin, 'ADMINISTRATOR'))
       .query({ search: runToken });
 
     expect(response.status).toBe(200);
