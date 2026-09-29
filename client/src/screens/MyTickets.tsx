@@ -78,13 +78,17 @@ export function MyTickets() {
   const hasActiveFilters = Boolean(search || categoryId || requestedPriority || currentStatus);
 
   // Debounce the free-text search box so typing doesn't fire a request per keystroke.
+  // Only when the text actually changed: an unconditional timer also fired on mount and reset
+  // the page to 1 ~300ms later, bouncing a user who had already paged forward (Issue 8, UI-11).
   useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === search) return;
     const timer = setTimeout(() => {
-      setSearch(searchInput.trim());
+      setSearch(trimmed);
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   useEffect(() => {
     fetchCategories()

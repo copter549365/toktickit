@@ -79,13 +79,17 @@ export function StaffTicketQueue() {
     search || categoryId || requestedPriority || itPriority || currentStatus || ownerFilter !== 'all',
   );
 
+  // Only when the text actually changed; otherwise the mount-time timer resets a page the user
+  // has already moved to (same fix as MyTickets, Issue 8).
   useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === search) return;
     const timer = setTimeout(() => {
-      setSearch(searchInput.trim());
+      setSearch(trimmed);
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   useEffect(() => {
     fetchCategories()

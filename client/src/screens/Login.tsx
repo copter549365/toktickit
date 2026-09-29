@@ -51,8 +51,11 @@ export function Login() {
         setFormError('This account has been deactivated. Please contact an administrator.');
       } else if (err instanceof ApiError && err.data.fieldErrors) {
         setFieldErrors(err.data.fieldErrors);
-      } else {
+      } else if (err instanceof ApiError && err.status === 401) {
         setFormError('Invalid email or password.');
+      } else {
+        // A 5xx or unreachable server is not the user's fault, so don't blame their credentials.
+        setFormError('Unable to sign in right now. Please try again.');
       }
     } finally {
       setIsSubmitting(false);

@@ -180,6 +180,7 @@ This specification defines the visual hierarchy, component states, layout behavi
 - **Tablet (768px – 991px):** Two-column layout where practical; compact tables with horizontal scroll if needed, stacked operational cards.
 - **Mobile (< 768px):**
   - Queue converts from table to stacked card items showing Ticket No, Status, Summary, Priority, and Owner.
+  - User Management list converts to stacked cards showing Name, Email, Role, Status, and Edit User (Issue 8).
   - Form inputs stack vertically (100% width).
   - Sticky action buttons at bottom of ticket detail.
   - Navigation converts to mobile drawer or bottom bar.
@@ -201,56 +202,63 @@ This specification defines the visual hierarchy, component states, layout behavi
 
 ## 8. Visual Inspection Checklist (per Screen, per Viewport)
 
-This checklist is verified during Issue 8 visual inspection across Desktop (1280px), Tablet (768px), and Mobile (375px):
+Verified during Issue 8 across Desktop (1280px), Tablet (768px), and Mobile (375px). Each row lists the automated assertion in `e2e/lab-03/responsive.spec.ts` (or the named spec) plus a manual review of the screenshots in §9.
 
-| Checklist Category | Verification Item | Inspection Criteria |
-|---|---|---|
-| **Design Consistency** | Zen Green Tokens | All surfaces, buttons, text, and borders adhere to the Zen Green token palette (§1) |
-| **Role Navigation** | Strict Nav Segregation | Authenticated user sees only their permitted navigation links (Requester, Staff, Admin) |
-| **Badges Fidelity** | Badges Specification | Status, Priority, and Role badges match exact color tokens, text contrast, and border styles (§3) |
-| **Field Semantics** | Editable vs Read-only | Read-only fields shaded warm ivory (`#F1F0E8`); editable fields render crisp white with focus outline |
-| **Comments vs Notes**| Visual Disambiguation | Internal Notes render with distinct warning amber border (`#B36B00`) and lock banner; never confused with Public Comments |
-| **Validation Placement**| Inline Error Rendering | Error text rendered directly beneath invalid field with `role="alert"` and red border; not just top banner |
-| **Focus Indication** | Keyboard Accessibility | Focus outlines clearly visible on all inputs, tabs, and buttons without clipping |
-| **Layout Integrity** | Clipping & Overlap | No clipped labels, button text, badges, or overlapping UI components across viewports |
-| **Responsive Purity** | No Horizontal Overflow | Zero unintended horizontal scrolling on the page body (`document.body.scrollWidth === window.innerWidth`) |
-| **Feedback States** | Complete State Handling | Loading spinner, empty state graphic, no-results filter state, and safe failure messages rendered correctly |
+| Checklist Category | Verification Item | Inspection Criteria | How verified | Result |
+|---|---|---|---|:---:|
+| **Design Consistency** | Zen Green Tokens | All surfaces, buttons, text, and borders adhere to the Zen Green token palette (§1) | Screenshot review of every screen at 3 viewports | ✅ after fix: leftover Vite `#root { text-align: center }` was centering all content |
+| **Role Navigation** | Strict Nav Segregation | Authenticated user sees only their permitted navigation links (Requester, Staff, Admin) | E2E-01 checks every role's header links; RESP checks the collapsed mobile nav; wrong-role URLs show a forbidden state (UI-16) | ✅ |
+| **Badges Fidelity** | Badges Specification | Status, Priority, and Role badges match exact color tokens, text contrast, and border styles (§3) | Screenshot review; STYLE-02 checks that no badge label is clipped | ✅ |
+| **Field Semantics** | Editable vs Read-only | Read-only fields shaded warm ivory (`#F1F0E8`); editable fields render crisp white with focus outline | STYLE-01 checks computed `rgb(241, 240, 232)` vs `rgb(255, 255, 255)` | ✅ |
+| **Comments vs Notes**| Visual Disambiguation | Internal Notes render with distinct warning amber border (`#B36B00`) and lock banner; never confused with Public Comments | STYLE-01 checks a 1px `rgb(179, 107, 0)` border and a distinct fill; E2E-04 checks each message appears only in its own panel | ✅ after fix: `border-0` was removing the amber border |
+| **Validation Placement**| Inline Error Rendering | Error text rendered directly beneath invalid field with `role="alert"` and red border; not just top banner | E2E-02 (change password), E2E-05 (create/edit user) | ✅ |
+| **Focus Indication** | Keyboard Accessibility | Focus outlines clearly visible on all inputs, tabs, and buttons without clipping | STYLE-02 tabs to key inputs and checks for an outline or box-shadow ring | ✅ |
+| **Layout Integrity** | Clipping & Overlap | No clipped labels, button text, badges, or overlapping UI components across viewports | STYLE-02 (no `.zg-badge`/`.btn` overflow) plus screenshot review | ✅ after fix: mobile user list hid Role/Status/Edit off-screen (now cards) |
+| **Responsive Purity** | No Horizontal Overflow | Zero unintended horizontal scrolling on the page body (`document.body.scrollWidth === window.innerWidth`) | RESP-01..03 on every screen and dialog | ✅ |
+| **Feedback States** | Complete State Handling | Loading spinner, empty state graphic, no-results filter state, and safe failure messages rendered correctly | E2E-06 (login busy/failure), E2E-08 (queue empty/no-results/failure/forbidden), E2E-05 (forbidden, last-admin refusal) | ✅ |
 
 ---
 
 ## 9. Screenshot Evidence Paths
 
-Target screenshot artifacts captured during automated Playwright visual suite and manual inspection, stored under `artifacts/lab-03/screenshots/`:
+Captured by `npm run test:e2e` into `artifacts/lab-03/screenshots/`. `{desktop,tablet,mobile}-*` files come from the responsive suite; the rest capture specific states from the journey specs.
 
 ```
 artifacts/lab-03/screenshots/
 ├── authentication/
-│   ├── login-desktop.png
-│   ├── login-mobile.png
+│   ├── {desktop,tablet,mobile}-login.png
+│   ├── {desktop,tablet,mobile}-change-password.png
+│   ├── {desktop,tablet,mobile}-requester-home.png
+│   ├── app-shell-requester-desktop.png
+│   ├── login-busy.png
 │   ├── login-error-safe.png
 │   ├── login-inactive-account.png
 │   ├── first-login-password-change-desktop.png
 │   └── first-login-password-change-validation.png
 ├── staff-queue/
-│   ├── queue-desktop-populated.png
-│   ├── queue-tablet.png
-│   ├── queue-mobile-card-view.png
+│   ├── {desktop,tablet,mobile}-queue.png          (mobile = stacked cards)
 │   ├── queue-filtered-status-priority.png
+│   ├── queue-no-results-state.png
 │   ├── queue-empty-state.png
-│   └── queue-no-results-state.png
+│   ├── queue-api-failure.png
+│   └── queue-forbidden-requester.png
 ├── staff-ticket-detail/
-│   ├── ticket-detail-desktop-overview.png
+│   ├── {desktop,tablet,mobile}-ticket-detail.png
 │   ├── ticket-detail-claim-and-reassign.png
 │   ├── ticket-detail-status-transition-modal.png
 │   ├── ticket-detail-public-comments.png
 │   ├── ticket-detail-internal-notes-amber-warning.png
 │   └── ticket-detail-requester-resolved-badge.png
 └── user-management/
+    ├── {desktop,tablet,mobile}-user-list.png      (mobile = stacked cards)
+    ├── {desktop,tablet,mobile}-create-user.png
+    ├── {desktop,tablet,mobile}-edit-user.png
     ├── admin-user-list-desktop.png
-    ├── admin-user-list-tablet.png
     ├── admin-user-list-filtered-role.png
     ├── admin-create-user-drawer.png
     ├── admin-edit-user-drawer.png
+    ├── admin-reset-initial-password-modal.png
     ├── admin-self-deactivation-blocked.png
-    └── admin-reset-initial-password-modal.png
+    ├── admin-last-admin-protection.png
+    └── admin-forbidden-it-staff.png
 ```

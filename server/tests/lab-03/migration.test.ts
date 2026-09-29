@@ -25,6 +25,19 @@ const MIGRATION_SQL_PATH = path.join(
 );
 const INITIAL_PASSWORD = 'InitialPassword123!';
 const BCRYPT_HASH_RE = /'(\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53})'/g;
+// The 10 accounts prisma/seed.ts creates.
+const SEED_USER_EMAILS = [
+  'jennifer.anderson@toktickit.com',
+  'david.lee@toktickit.com',
+  'sarah.johnson@toktickit.com',
+  'emily.davis@toktickit.com',
+  'robert.wilson@toktickit.com',
+  'michael.brown@toktickit.com',
+  'alex.thompson@toktickit.com',
+  'lisa.martinez@toktickit.com',
+  'kevin.patel@toktickit.com',
+  'john.smith@toktickit.com',
+];
 
 afterAll(async () => { await prisma.$disconnect(); });
 
@@ -158,7 +171,12 @@ describe('MIGR-02: Seeded and migrated users have valid bcrypt hashes and mustCh
   });
 
   it('all seeded users should have mustChangePassword = true', () => {
-    for (const u of users) {
+    // Only the prisma/seed.ts accounts: the E2E suite's e2e.* fixtures and accounts it creates
+    // through the Admin UI legitimately complete their password change in the same shared DB
+    // (Issue 8), so asserting on every User row would make this depend on test-run history.
+    const seeded = users.filter((u) => SEED_USER_EMAILS.includes(u.email));
+    expect(seeded).toHaveLength(SEED_USER_EMAILS.length);
+    for (const u of seeded) {
       expect(u.mustChangePassword).toBe(true);
     }
   });

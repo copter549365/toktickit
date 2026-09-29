@@ -42,9 +42,9 @@ function emptyResponse() {
 
 // The desktop table and mobile card layout both render in jsdom (no real media queries), so scope
 // row-content assertions to the table to avoid ambiguous duplicate-text matches.
+/** Re-queries the table on every retry so a remounted table is never searched as a stale node. */
 async function findInTable(text: string) {
-  const table = await screen.findByTestId('my-tickets-table');
-  return within(table).findByText(text);
+  return waitFor(() => within(screen.getByTestId('my-tickets-table')).getByText(text));
 }
 
 function renderMyTickets() {
@@ -209,6 +209,32 @@ describe('UI-07, UI-09..UI-11: My Tickets Screen (regression under real auth, FR
     fireEvent.click(retryButton);
 
     expect(await findInTable('TKT-2026-000001')).toBeInTheDocument();
+  });
+
+  it('UI-19: paging right after load is not reset to page 1 by the search debounce', async () => {
+    stubFetch((url) => {
+      const page = new URL(url).searchParams.get('page') ?? '1';
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [makeTicket({ id: Number(page), summary: `Page ${page} ticket` })],
+          meta: { page: Number(page), pageSize: 10, totalCount: 25, totalPages: 3 },
+        }),
+      } as Response);
+    });
+
+    renderMyTickets();
+    await findInTable('Page 1 ticket');
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    await findInTable('Page 2 ticket');
+
+    // Outlast the 300ms debounce window that used to fire setPage(1) on mount.
+    await new Promise((r) => setTimeout(r, 450));
+    expect(within(screen.getByTestId('my-tickets-table')).getByText('Page 2 ticket')).toBeInTheDocument();
+    const ticketCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .map((call: any[]) => call[0] as string)
+      .filter((url) => url.includes('/api/tickets'));
+    expect(new URL(ticketCalls[ticketCalls.length - 1]).searchParams.get('page')).toBe('2');
   });
 
   it('UI-11: ignores stale responses when rapid page transitions occur', async () => {

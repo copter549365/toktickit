@@ -88,6 +88,24 @@ describe('UI-01: Login screen (AC-01)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/Invalid email or password/i);
   });
 
+  it('does not blame the credentials when the server itself fails (safe API failure)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(null, 401))
+      .mockResolvedValueOnce(jsonResponse({ error: 'INTERNAL_ERROR' }, 500));
+    vi.stubGlobal('fetch', fetchMock);
+    renderLogin();
+
+    await waitFor(() => expect(screen.getByLabelText(/Email/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Email/i), { target: { value: 'jennifer.anderson@toktickit.com' } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'InitialPassword123!' } });
+    fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/Unable to sign in right now/i);
+    expect(alert).not.toHaveTextContent(/Invalid email or password/i);
+  });
+
   it('renders a safe error message for a deactivated account (BR-01)', async () => {
     const fetchMock = vi
       .fn()

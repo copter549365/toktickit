@@ -737,7 +737,7 @@ export function StaffTicketDetail() {
       </div>
 
       {/* Internal Notes — distinct amber/warning styling, strictly hidden from Requesters */}
-      <div className="card border-0 shadow-sm zg-internal-notes-panel" data-testid="internal-notes-section">
+      <div className="card shadow-sm zg-internal-notes-panel" data-testid="internal-notes-section">
         <div className="card-body p-4">
           <div className="zg-internal-notes-banner mb-3">
             🔒 Internal Notes — Visible ONLY to IT Staff and Administrators. Never shared with Requesters.
