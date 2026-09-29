@@ -27,7 +27,7 @@ Branch flow: each Issue branch → `restore/lab2-into-lab3-staging` (the Lab 2 b
 | **Issue 5** — IT Staff queue | [#48](https://github.com/copter549365/toktickit/pull/48) | `feat/issue-5-staff-ticket-queue` | @Alongkron1234 | **Approved & Merged** |
 | **Issue 6** — IT Staff ticket detail | [#49](https://github.com/copter549365/toktickit/pull/49) | `feat/issue-6-staff-ticket-detail` | @IEAR2548 | **Approved & Merged** |
 | **Issue 7** — Admin user management | [#50](https://github.com/copter549365/toktickit/pull/50) | `feat/issue-7-admin-user-management` | @AlphabetCG | Changes requested → **Approved & Merged** |
-| **Issue 8** — E2E, visual inspection & release prep | #TBD | `feat/issue-8-e2e-release-prep` | TBD | Pending review |
+| **Issue 8** — E2E, visual inspection & release prep | [#51](https://github.com/copter549365/toktickit/pull/51) | `feat/issue-8-e2e-release-prep` | TBD | Pending review |
 
 ### 1.1. Key review comments and my responses
 
