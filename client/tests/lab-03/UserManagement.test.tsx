@@ -78,6 +78,21 @@ describe('UI-07: Admin User Management (AC-10, AC-12, AC-16, AC-17)', () => {
     expect(await findInTable('Active')).toBeInTheDocument();
   });
 
+  it('renders a mobile card per user with role, status, and its own Edit action', async () => {
+    stubFetch(() => Promise.resolve({ ok: true, json: async () => [makeUser({ isActive: false })] } as Response));
+
+    renderScreen();
+
+    const card = await screen.findByTestId('user-card-2');
+    expect(within(card).getByText('Jane Doe')).toBeInTheDocument();
+    expect(within(card).getByText('jane.doe@toktickit.com')).toBeInTheDocument();
+    expect(within(card).getByText('IT Staff')).toBeInTheDocument();
+    expect(within(card).getByText('Inactive')).toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Edit User' }));
+    expect(await screen.findByRole('dialog', { name: 'Edit User' })).toBeInTheDocument();
+  });
+
   it('searching re-queries the API with the search term', async () => {
     stubFetch(() => Promise.resolve({ ok: true, json: async () => [makeUser()] } as Response));
 
@@ -103,13 +118,13 @@ describe('UI-07: Admin User Management (AC-10, AC-12, AC-16, AC-17)', () => {
     renderScreen();
     await findInTable('Jane Doe');
 
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'ADMINISTRATOR' } });
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'IT_STAFF' } });
 
     await waitFor(() => {
       const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((call: any[]) =>
         (call[0] as string).includes('/api/admin/users'),
       );
-      expect(calls.some((call: any[]) => (call[0] as string).includes('role=ADMINISTRATOR'))).toBe(true);
+      expect(calls.some((call: any[]) => (call[0] as string).includes('role=IT_STAFF'))).toBe(true);
     });
   });
 
@@ -150,7 +165,7 @@ describe('UI-07: Admin User Management (AC-10, AC-12, AC-16, AC-17)', () => {
     renderScreen();
     await findInTable('John Smith');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit User' }));
+    fireEvent.click(within(screen.getByTestId('user-management-table')).getByRole('button', { name: 'Edit User' }));
 
     const activeToggle = await screen.findByLabelText('Active');
     expect(activeToggle).toBeDisabled();
@@ -164,7 +179,7 @@ describe('UI-07: Admin User Management (AC-10, AC-12, AC-16, AC-17)', () => {
     renderScreen();
     await findInTable('Sole Admin');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit User' }));
+    fireEvent.click(within(screen.getByTestId('user-management-table')).getByRole('button', { name: 'Edit User' }));
 
     const activeToggle = await screen.findByLabelText('Active');
     expect(activeToggle).toBeDisabled();
@@ -191,6 +206,29 @@ describe('UI-07: Admin User Management (AC-10, AC-12, AC-16, AC-17)', () => {
     expect(activeToggle).not.toBeDisabled();
   });
 
+  it('does not treat an Administrator as the last one just because a search hides the others', async () => {
+    const searchedAdmin = makeUser({ id: 9, name: 'Searched Admin', email: 'searched.admin@toktickit.com', role: 'ADMINISTRATOR' });
+    const hiddenAdmin = makeUser({ id: 10, name: 'Hidden Admin', email: 'hidden.admin@toktickit.com', role: 'ADMINISTRATOR' });
+    stubFetch((url) => {
+      // The unfiltered active-Administrator count query sees both Admins; the list query is
+      // narrowed by search to just one of them.
+      if (url.includes('role=ADMINISTRATOR') && !url.includes('search=')) {
+        return Promise.resolve({ ok: true, json: async () => [searchedAdmin, hiddenAdmin] } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => [searchedAdmin] } as Response);
+    });
+
+    renderScreen();
+    await findInTable('Searched Admin');
+
+    fireEvent.click(within(screen.getByTestId('user-management-table')).getByRole('button', { name: 'Edit User' }));
+
+    const activeToggle = await screen.findByLabelText('Active');
+    expect(activeToggle).not.toBeDisabled();
+    const dialog = screen.getByRole('dialog', { name: 'Edit User' });
+    expect(within(dialog).getByLabelText('Role', { exact: false })).not.toBeDisabled();
+  });
+
   it('updating a user submits the edit form and refreshes the list', async () => {
     let patchCalled = false;
     stubFetch((_url, init) => {
@@ -204,7 +242,7 @@ describe('UI-07: Admin User Management (AC-10, AC-12, AC-16, AC-17)', () => {
     renderScreen();
     await findInTable('Jane Doe');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit User' }));
+    fireEvent.click(within(screen.getByTestId('user-management-table')).getByRole('button', { name: 'Edit User' }));
     fireEvent.change(await screen.findByLabelText('Full Name', { exact: false }), {
       target: { value: 'Jane Updated' },
     });

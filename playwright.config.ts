@@ -1,12 +1,16 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Lab 2 E2E + responsive-visual suite (Issue 7). Runs against the real Express API and a real
- * PostgreSQL database (via Docker Compose) rather than mocks, matching the server/client test
- * conventions established in Issues 3-6.
+ * Lab 3 E2E + responsive-visual suite (Issue 8). Runs against the real Express API and a real
+ * PostgreSQL database (via Docker Compose) rather than mocks. global-setup.ts resets the dedicated
+ * e2e.* accounts first so authentication journeys are repeatable on a shared dev database.
+ *
+ * The Lab 2 suite (e2e/lab-02) drove the Development Requester selector, which Lab 3 removed; its
+ * flows are now covered under real auth by these specs and server/tests/lab-03/requester-regression.
  */
 export default defineConfig({
-  testDir: './e2e/lab-02',
+  testDir: './e2e/lab-03',
+  globalSetup: './e2e/lab-03/global-setup.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

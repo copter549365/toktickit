@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RequireAuth } from './components/RequireAuth';
+import { RequireRole } from './components/RequireRole';
 import { AppShell } from './components/AppShell';
 import { Login } from './screens/Login';
 import { ChangePassword } from './screens/ChangePassword';
@@ -43,12 +44,18 @@ function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
               <Route index element={<AuthenticatedHome />} />
-              <Route path="tickets" element={<MyTickets />} />
-              <Route path="tickets/new" element={<CreateTicket />} />
-              <Route path="tickets/:id" element={<RequesterTicketDetail />} />
-              <Route path="staff/tickets" element={<StaffTicketQueue />} />
-              <Route path="staff/tickets/:id" element={<StaffTicketDetail />} />
-              <Route path="admin/users" element={<UserManagement />} />
+              <Route element={<RequireRole roles={['REQUESTER']} />}>
+                <Route path="tickets" element={<MyTickets />} />
+                <Route path="tickets/new" element={<CreateTicket />} />
+                <Route path="tickets/:id" element={<RequesterTicketDetail />} />
+              </Route>
+              <Route element={<RequireRole roles={['IT_STAFF', 'ADMINISTRATOR']} />}>
+                <Route path="staff/tickets" element={<StaffTicketQueue />} />
+                <Route path="staff/tickets/:id" element={<StaffTicketDetail />} />
+              </Route>
+              <Route element={<RequireRole roles={['ADMINISTRATOR']} />}>
+                <Route path="admin/users" element={<UserManagement />} />
+              </Route>
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -63,8 +63,12 @@ export function UserManagement() {
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
+  // Counted from its own unfiltered query: deriving it from `users` undercounts whenever a search
+  // or role filter hides other Administrators, wrongly locking a non-last Admin's role/Active
+  // controls (Issue 8 visual inspection). The server re-checks BR-20 regardless.
+  const [activeAdminCount, setActiveAdminCount] = useState<number | null>(null);
+
   const hasActiveFilters = Boolean(search || roleFilter);
-  const activeAdminCount = users.filter((u) => u.role === 'ADMINISTRATOR' && u.isActive).length;
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -86,6 +90,12 @@ export function UserManagement() {
         setIsLoading(false);
       });
   }, [search, roleFilter, retryCount]);
+
+  useEffect(() => {
+    fetchAdminUsers({ role: 'ADMINISTRATOR' })
+      .then((admins) => setActiveAdminCount(admins.filter((u) => u.isActive).length))
+      .catch(() => setActiveAdminCount(null));
+  }, [retryCount]);
 
   const handleClearFilters = () => {
     setSearchInput('');
@@ -138,7 +148,11 @@ export function UserManagement() {
 
   const isEditingSelf = editingUser !== null && currentUser !== null && editingUser.id === currentUser.id;
   const isEditingLastActiveAdmin =
-    editingUser !== null && editingUser.role === 'ADMINISTRATOR' && editingUser.isActive && activeAdminCount <= 1;
+    editingUser !== null &&
+    editingUser.role === 'ADMINISTRATOR' &&
+    editingUser.isActive &&
+    activeAdminCount !== null &&
+    activeAdminCount <= 1;
 
   const handleEditSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -271,7 +285,9 @@ export function UserManagement() {
       )}
 
       {!isLoading && !loadError && users.length > 0 && (
-        <div className="card border-0 shadow-sm">
+        <>
+        {/* Desktop / tablet table */}
+        <div className="d-none d-md-block card border-0 shadow-sm">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0" data-testid="user-management-table">
               <thead>
@@ -307,6 +323,31 @@ export function UserManagement() {
             </table>
           </div>
         </div>
+
+        {/* Mobile card layout — a 5-column table cannot fit 375px without hiding Role/Status/Edit
+            behind a horizontal scroll (ui-spec.md §6, Issue 8 visual inspection). */}
+        <div className="d-md-none d-flex flex-column gap-2">
+          {users.map((u) => (
+            <div key={u.id} className="card border-0 shadow-sm" data-testid={`user-card-${u.id}`}>
+              <div className="card-body p-3">
+                <div className="fw-semibold">{u.name}</div>
+                <div className="small text-muted text-break mb-2">{u.email}</div>
+                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                  <div className="d-flex flex-wrap gap-2">
+                    <Badge kind="role" value={u.role} />
+                    <span className={`zg-badge ${u.isActive ? 'badge-account-active' : 'badge-account-inactive'}`}>
+                      {u.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <Button variant="secondary" onClick={() => openEditModal(u)}>
+                    Edit User
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {showCreateModal && (
