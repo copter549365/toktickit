@@ -31,7 +31,8 @@ Issues 2–8 took one extra step. Review of #43 asked for the Lab 2 restore to b
 | **Issue 7** — Admin user management | [#50](https://github.com/copter549365/toktickit/pull/50) | `feat/issue-7-admin-user-management` | @AlphabetCG | Changes requested → **Approved & Merged** |
 | **Issue 8** — E2E, visual inspection & release prep | [#51](https://github.com/copter549365/toktickit/pull/51) | `feat/issue-8-e2e-release-prep` | @AlphabetCG | Fix requested → **Approved & Merged** (fix landed in the release cleanup PR) |
 | Integration of Issues 2–8 | [#52](https://github.com/copter549365/toktickit/pull/52) | `restore/lab2-into-lab3-staging` → `lab3-staging` | @AlphabetCG | **Approved & Merged** |
-| Release cleanup (review fixes, docs) | [#53](https://github.com/copter549365/toktickit/pull/53) | `docs/lab3-release-cleanup` | TBD | Pending review |
+| Release cleanup (review fixes, docs) | [#53](https://github.com/copter549365/toktickit/pull/53) | `docs/lab3-release-cleanup` | @AlphabetCG | **Merged** by the reviewer (comment: "ครบถ้วนครับ") |
+| **Lab 3 release** | [#54](https://github.com/copter549365/toktickit/pull/54) | `lab3-staging` → `main` | @AlphabetCG | Release PR; final verdict recorded on the PR |
 
 ### 1.1. Key review comments and my responses
 
