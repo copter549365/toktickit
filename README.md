@@ -76,7 +76,6 @@ toktickit/
 ├── client/               ← React + Vite + Bootstrap frontend
 ├── server/               ← Express + TypeScript backend
 ├── e2e/lab-03/           ← Lab 3 Playwright E2E + responsive/style suite (Issue 8)
-├── e2e/lab-02/           ← Lab 2 suite (historical; drove the removed Development Requester selector)
 ├── artifacts/lab-0{2,3}/ ← screenshot evidence captured by each lab's E2E suite
 └── docs/lab-0{1,2,3}/    ← per-lab engineering contract (spec, tests, UI/API specs, reviewer, AI use)
 ```
@@ -108,27 +107,13 @@ npm run test:e2e          # starts the client/server dev servers if they aren't 
 Screenshots go to `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/`
 (listed in `docs/lab-03/ui-spec.md` §9). Results and traceability are in `docs/lab-03/tests.md`.
 
-### End-to-end & responsive visual tests (Lab 2, Issue 7 — historical)
+### Lab 2 E2E suite (retired)
 
-> Lab 3 replaced the Development Requester selector these specs drive, so they no longer run against
-> the current app. Their Requester flows are covered under real authentication by
-> `server/tests/lab-03/requester-regression.test.ts` and the Lab 3 E2E suite.
-
-The Playwright suite in `e2e/lab-02` exercises the full Requester journey (Selection → Create Ticket →
-My Tickets → Ticket Detail → attachment lifecycle) and captures desktop/tablet/mobile screenshots against
-the real Express API and PostgreSQL — not mocks — matching `docs/lab-02/tests.md`'s E2E-01..05 and
-RESP-01..03 rows.
-
-```bash
-# From the project root, one-time setup
-npm install
-npx playwright install chromium
-
-git checkout lab2-staging && npm run test:e2e   # the Lab 2 config and app
-```
-
-Screenshot evidence is written to `artifacts/lab-02/screenshots/{create-ticket,my-tickets,ticket-detail}/`
-per `docs/lab-02/ui-spec.md` §9. `npx playwright show-report` opens the HTML report from the last run.
+The Lab 2 Playwright suite (`e2e/lab-02`) logged in through the Development Requester selector, which
+Lab 3 replaced with real authentication, so it was removed at the Lab 3 release. Its Requester flows
+are covered under real auth by `server/tests/lab-03/requester-regression.test.ts` and the Lab 3 E2E
+suite; `docs/lab-03/tests.md` §4.2 maps each retired row to its Lab 3 coverage. To run it as it was,
+check out `lab2-staging`. Its screenshots remain in `artifacts/lab-02/screenshots/`.
 
 ## Tech Stack
 
