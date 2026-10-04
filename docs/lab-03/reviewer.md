@@ -6,11 +6,13 @@
 
 | Role | Name | Student ID | GitHub |
 |---|---|---|---|
-| First Peer Reviewer | — | 67070501041 | [@AlphabetCG](https://github.com/AlphabetCG) |
+| First Peer Reviewer | Napat Utabuawong | 67070501041 | [@AlphabetCG](https://github.com/AlphabetCG) |
 | Second Peer Reviewer | Alongkron Kaeprom | 67070501050 | [@Alongkron1234](https://github.com/Alongkron1234) |
-| Additional Reviewer | — | — | [@IEAR2548](https://github.com/IEAR2548) |
+| Additional Reviewer | Paphangkorn Luanseng | 67070501083 | [@IEAR2548](https://github.com/IEAR2548) |
 
-Branch flow: each Issue branch → `restore/lab2-into-lab3-staging` (the Lab 2 baseline restored into Lab 3, PR #44) → `lab3-staging` → `main` (release PR).
+**Branch flow:** Issue branch → `lab3-staging` → `main` (release PR).
+
+Issues 2–8 took one extra step. Review of #43 asked for the Lab 2 restore to be split from the Issue 2 work, so #44 (restore → `lab3-staging`) and #45 (Issue 2) were opened separately, with #45 stacked on the restore branch so its diff showed only Issue 2. After #44 merged, the base of later PRs was never switched back to `lab3-staging`, so #45–#51 merged into `restore/lab2-into-lab3-staging`. [#52](https://github.com/copter549365/toktickit/pull/52) then brought that branch into `lab3-staging` as one integration PR. Every Issue PR was still reviewed and approved on its own. The two branches held identical code at the split point, so the integration merge had no conflicts.
 
 ---
 
@@ -27,7 +29,8 @@ Branch flow: each Issue branch → `restore/lab2-into-lab3-staging` (the Lab 2 b
 | **Issue 5** — IT Staff queue | [#48](https://github.com/copter549365/toktickit/pull/48) | `feat/issue-5-staff-ticket-queue` | @Alongkron1234 | **Approved & Merged** |
 | **Issue 6** — IT Staff ticket detail | [#49](https://github.com/copter549365/toktickit/pull/49) | `feat/issue-6-staff-ticket-detail` | @IEAR2548 | **Approved & Merged** |
 | **Issue 7** — Admin user management | [#50](https://github.com/copter549365/toktickit/pull/50) | `feat/issue-7-admin-user-management` | @AlphabetCG | Changes requested → **Approved & Merged** |
-| **Issue 8** — E2E, visual inspection & release prep | [#51](https://github.com/copter549365/toktickit/pull/51) | `feat/issue-8-e2e-release-prep` | TBD | Pending review |
+| **Issue 8** — E2E, visual inspection & release prep | [#51](https://github.com/copter549365/toktickit/pull/51) | `feat/issue-8-e2e-release-prep` | @AlphabetCG | Fix requested → **Approved & Merged** (fix landed in the release cleanup PR) |
+| Integration of Issues 2–8 | [#52](https://github.com/copter549365/toktickit/pull/52) | `restore/lab2-into-lab3-staging` → `lab3-staging` | TBD | Pending review |
 
 ### 1.1. Key review comments and my responses
 
@@ -42,20 +45,23 @@ Branch flow: each Issue branch → `restore/lab2-into-lab3-staging` (the Lab 2 b
 | #49 | LGTM on RBAC, status state machine, and Public/Internal separation (non-blocking note only). | — |
 | #50 | Deactivating, demoting, or resetting a user did not affect their already-open session until the JWT expired. | `requireAuth` now re-reads `isActive`, `role`, and `mustChangePassword` from the DB on every request (`15df1e9`); API-35 added. |
 | #50 | The server suite failed on DB-01 when run as a whole, because test files mutated shared DB rows in parallel. | Set `fileParallelism: false` in `server/vitest.config.ts`. |
+| #51 | `e2e/lab-02/` was still in the tree but no longer ran; it drove the removed Development Requester selector, which breaks the DoD rule against disabled tests on `main`. | Deleted the suite and mapped each retired row to its Lab 3 coverage in `tests.md` §4.2 (`dc6df62`, release cleanup PR). |
+| #51 | `reuseExistingServer: true` lets Playwright test a stray dev server instead of the branch (non-blocking). | Changed to `!process.env.CI` (`3538d4f`, release cleanup PR). |
+| #51 | `reviewer.md` §2 still had placeholder PR links and an unnamed First Peer Reviewer (non-blocking). | Filled in §2 with my reviews of the partner's PRs and added reviewer names. |
+| #51 | Mark the last-active-Administrator E2E as a UI-level check, since the server response is not the real rule (non-blocking). | Already stated in `tests.md`: the AC-13 row notes the E2E checks the UI refusal and `API-29` covers the real rule. |
+| #51 | Guard `global-setup.ts` to `localhost` before it writes to the DB; use `role="status"` instead of `role="alert"` for the forbidden panel (non-blocking). | Not changed this sprint; noted for follow-up. |
 
 ---
 
 ## 2. Pull Requests I reviewed for my partner (@AlphabetCG)
 
-> To be completed with the partner's Lab 3 PR links and my review summaries.
-
-| Issue | PR Link | Review Summary & Action |
-|:---:|---|---|
-| **Issue 1** | https://github.com/AlphabetCG/toktickit/pull/... | docs: Lab 3 sprint engineering contract |
-| **Issue 2** | https://github.com/AlphabetCG/toktickit/pull/... | feat: Lab 3 database increment, migration & seed |
-| **Issue 3** | https://github.com/AlphabetCG/toktickit/pull/... | feat: Authentication & mandatory password change |
-| **Issue 4** | https://github.com/AlphabetCG/toktickit/pull/... | feat: Requester regression & public comments |
-| **Issue 5** | https://github.com/AlphabetCG/toktickit/pull/... | feat: IT Staff ticket queue |
-| **Issue 6** | https://github.com/AlphabetCG/toktickit/pull/... | feat: IT Staff ticket detail & operational workflow |
-| **Issue 7** | https://github.com/AlphabetCG/toktickit/pull/... | feat: Administrator user management & safety rules |
-| **Issue 8** | https://github.com/AlphabetCG/toktickit/pull/... | test: E2E suite, responsive visual inspection & release prep |
+| Issue | PR | My verdict | Review summary | Partner's response |
+|:---:|:---:|:---:|---|---|
+| **Issue 1** — Engineering contract | [#37](https://github.com/AlphabetCG/toktickit/pull/37) | **Approved** | Specification, tests, API, and UI docs covered everything the PR description listed. | — |
+| **Issue 2** — Data model, migration & seed | [#38](https://github.com/AlphabetCG/toktickit/pull/38) | Changes requested → **Approved** | (1) Every seeded account had `mustChangePassword: false`, so there was no account to demo the mandatory first-login change. (2) The migration test only checks SQL text, not a before/after replay; say so in `tests.md`. (3) Confirm the `ALTER TYPE … ADD VALUE` migration commits before the seed runs. (4) Rows added outside the seed would keep `passwordHash = ''`. | Fixed in `c91935d`: seeded Requesters now start with `mustChangePassword = true`; `tests.md` labels the migration rows as static SQL-mechanism checks; `prisma migrate reset --force` confirmed clean; (4) documented as fail-safe, since an empty hash can never match. |
+| **Issue 3** — Authentication | [#39](https://github.com/AlphabetCG/toktickit/pull/39) | Questions → **Approved** | (1) `PASSWORD_MIN` was declared separately on client and server, so the two could drift. (2) No test for a wrong current password on change-password. (3) Confirm whether `/api/tickets` is meant to require the Requester role. | Fixed in `55b70b6`: added `UI-31` (fails if the two constants differ) and `API-39` (400 on a wrong current password, and the password is not changed). (3) was intentional: POST is Requester-only, GET is scoped by ownership. |
+| **Issue 4** — Requester regression & Public Comments | [#40](https://github.com/AlphabetCG/toktickit/pull/40) | Questions → **Approved** | (1) `findAccessibleTicket` gave Administrators the same Ticket access as IT Staff, which handout §4.3 says needs explicit approval in the authorization matrix. (2) The resolution-signal button had no `catch`, so a failure showed the user nothing. (3) No test covered the 409 for commenting or signalling on CLOSED/CANCELLED tickets. | Fixed in `39faae4`: (1) confirmed as approved in spec §6.1, documented at the helper, and locked by `API-41`; (2) added error feedback plus `UI-32`; (3) added `API-28` and `API-40`. |
+| **Issue 5** — IT Staff Ticket Queue | [#41](https://github.com/AlphabetCG/toktickit/pull/41) | **Approved** | No changes requested. | — |
+| **Issue 6** — IT Staff Ticket Detail | [#42](https://github.com/AlphabetCG/toktickit/pull/42) | **Approved** | No changes requested. | — |
+| **Issue 7** — Admin user management | — | Not reviewed | The partner had not opened this PR as of 2026-10-04. | — |
+| **Issue 8** — E2E & release prep | — | Not reviewed | The partner had not opened this PR as of 2026-10-04. | — |
