@@ -198,3 +198,19 @@ Running 41 tests using 1 worker
 | 6 | Login reported "Invalid email or password" for a 500 or an unreachable server. | Only a 401 says that; other failures show "Unable to sign in right now". | `UI-18`, `E2E-06` |
 | 7 | The search debounce also fired on mount and reset the page to 1 about 300ms later, bouncing a user who had already paged forward (My Tickets and Staff Queue). This was the real cause of the intermittent `UI-11` failure. | Page resets only when the search text actually changes. | `UI-19`, `UI-11` |
 | 8 | `MIGR-02` asserted `mustChangePassword = true` on every User row, so it failed once any non-seed account had changed its password. | Scoped to the 10 `prisma/seed.ts` accounts, which is what the test name describes. | `MIGR-02` |
+
+### 4.2. Retired Lab 2 E2E suite (`e2e/lab-02`)
+
+The Lab 2 Playwright suite was removed from the repository at release. Every spec in it logged in by going through the Development Requester selector (`/select-requester`), which Lab 3 replaced with real authentication. The suite could therefore no longer pass, and `playwright.config.ts` had already narrowed `testDir` to `./e2e/lab-03`, so it was not running at all. Keeping a suite that never runs would break the Definition of Done rule that no test is skipped or disabled on `main`. The Lab 2 code and its results stay in git history and in `docs/lab-02/tests.md`, and its screenshots stay in `artifacts/lab-02/screenshots/`.
+
+Where each retired Lab 2 row is now covered under real authentication:
+
+| Lab 2 row | Flow | Lab 3 coverage |
+|---|---|---|
+| E2E-01 | Create a ticket and see the generated Ticket Number | `e2e/lab-03/staff-ticket-flow.spec.ts` ("Requester creates a Ticket (Lab 2 flow under real auth)"), `REGR-01a` |
+| E2E-02 | One Requester cannot see another's tickets | `REGR-01b`, `REGR-01c`, `API-10`, `API-11` (API level; the selector-switching UI no longer exists) |
+| E2E-03 | Attachment add, soft-remove, download blocked | `REGR-01d` (API level) |
+| E2E-04 | Search, filter, and paginate My Tickets | `REGR-01b` (API level), `client/tests/lab-03/MyTickets.test.tsx` including `UI-19` (component level) |
+| E2E-05 | Keyboard-only pass from the selector to Create Ticket | Selector removed; visible keyboard focus is checked on each major screen by `e2e/lab-03/responsive.spec.ts` |
+| RESP-01 | My Tickets at mobile width | `e2e/lab-03/responsive.spec.ts` ("requester regression: My Tickets home and sign-out reachable") at all three viewports |
+| RESP-02, RESP-03 | Create Ticket and Requester Ticket Detail at three widths | Not re-run at three viewports in Lab 3; the Lab 2 screenshots in `artifacts/lab-02/screenshots/` remain the responsive evidence for these screens |

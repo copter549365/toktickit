@@ -5,8 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
  * PostgreSQL database (via Docker Compose) rather than mocks. global-setup.ts resets the dedicated
  * e2e.* accounts first so authentication journeys are repeatable on a shared dev database.
  *
- * The Lab 2 suite (e2e/lab-02) drove the Development Requester selector, which Lab 3 removed; its
- * flows are now covered under real auth by these specs and server/tests/lab-03/requester-regression.
+ * The Lab 2 suite drove the Development Requester selector, which Lab 3 removed, so it was retired;
+ * docs/lab-03/tests.md §4.2 maps its flows to these specs and server/tests/lab-03/requester-regression.
  */
 export default defineConfig({
   testDir: './e2e/lab-03',
@@ -32,14 +32,14 @@ export default defineConfig({
       command: 'npm run dev',
       cwd: './server',
       url: 'http://localhost:3000/api/health',
-      reuseExistingServer: true,
+      reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
     {
       command: 'npm run dev',
       cwd: './client',
       url: 'http://localhost:5173',
-      reuseExistingServer: true,
+      reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
   ],

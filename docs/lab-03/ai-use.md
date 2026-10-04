@@ -30,9 +30,16 @@ Using an AI Specification Agent during the early phase of Sprint 3 enforced stro
 
 The peer review iteration demonstrated the value of collaborative contract refinement: catching claimed "Pass" statuses before implementation, ensuring all 8 required test categories are planned, tightening CSRF explanations, and eliminating machine-specific absolute file links. The AI helped ensure that all edge cases—such as distinguishing public comments from private internal notes and maintaining backward compatibility with Lab 2 data—were rigorously documented.
 
-### Coding-agent notes (Issue 8)
+### Coding Agent: Reflection & Key Takeaways
 
-- The agent's first diagnosis of the flaky `UI-11` test ("too slow under load", so raise the timeout) was wrong. The failure kept recurring, and tracing it found a real bug: the search debounce reset the page on mount. The timeout change was reverted and the actual bug fixed. Agent claims need the same verification as any other code change.
-- For the last-active-Administrator rule, the agent kept the E2E honest rather than faking coverage: the shared dev database always has several Admins, so the E2E only checks the UI's handling of the refusal, and the real rule stays covered by `API-29`.
+#### 1. สิ่งที่ AI ช่วยเพิ่มประสิทธิภาพ (Strengths & Benefits)
+- **TDD & Test Coverage:** AI ช่วยเขียนเทสต์ตาม contract ใน `tests.md` ได้ครบทุกชั้น ทั้ง API Integration Test (Vitest + Supertest, 172 เทสต์), UI Component Test (Vitest + RTL, 87 เทสต์) และ E2E Test (Playwright, 41 เทสต์) ครอบคลุมทั้ง Happy Path, Validation Errors, การปฏิเสธสิทธิ์ตาม Role (401/403) และ Safety Rules ของ Administrator
+- **Catching Real UI Defects:** การให้ AI รัน E2E แล้วเก็บ Responsive Screenshots ทั้ง 3 ขนาดหน้าจอ ทำให้เจอ Defect จริง 8 จุด (`tests.md` §4.1) เช่น ขอบสีอำพันของ Internal Notes หายไปเพราะ class `border-0` ของ Bootstrap, หน้า User Management ใช้งานไม่ได้บนจอ 375px และ user ที่ Role ไม่ตรงเห็นข้อความ "Unable to load…" แทนหน้า Forbidden
+- **Code Consistency & Architecture:** ช่วยคุม Error Codes ของ API (เช่น `LAST_ADMIN_PROTECTION`, `SELF_DEACTIVATION_PROHIBITED`), Status/Priority Badges และ Zen Green Design Tokens ให้สอดคล้องกันทั้งฝั่ง Requester, IT Staff และ Administrator
 
-> _Author: extend **My Reflection** above with your own view of using the coding agent in this sprint._
+#### 2. ข้อจำกัดและสิ่งที่ต้องควบคุมด้วยตนเอง (Human-in-the-Loop Oversight)
+- **Verifying Agent Claims:** AI วิเคราะห์เทสต์ `UI-11` ที่ fail แบบสุ่มผิดในครั้งแรก โดยสรุปว่า "เครื่องช้า" แล้วเพิ่ม timeout แต่เทสต์ยังพังซ้ำ พอไล่ดูจริงจึงเจอบั๊กว่า search debounce รีเซ็ตกลับไปหน้า 1 ตอน mount ข้อสรุปของ AI จึงต้องถูกตรวจสอบเหมือนโค้ดทั่วไป ไม่ใช่เชื่อทันที
+- **Security & Authorization Edge Cases:** ช่องโหว่ที่ user ถูก Deactivate หรือถูกลด Role แล้วยังใช้ Session เดิมได้จนกว่า JWT จะหมดอายุ ถูกพบจาก Peer Review (PR #50) ไม่ใช่จาก AI จึงต้องแก้ให้ `requireAuth` อ่าน `isActive`, `role` และ `mustChangePassword` จาก DB ใหม่ทุก Request กฎด้านสิทธิ์จึงยังต้องมีคนคิด Scenario ที่ AI มองข้าม
+- **Test Honesty:** ต้องคอยดูว่าสถานะเทสต์สะท้อนความจริง เช่น `tests.md` เคยถูกตั้งเป็น `Pass` ทั้งหมดก่อนมีโค้ด (PR #42) และกฎ Last-Active-Administrator ที่ทดสอบผ่าน E2E บนฐานข้อมูลร่วมไม่ได้ จึงเขียนกำกับชัดว่า E2E ตรวจแค่การแสดงผลฝั่ง UI ส่วนกฎจริงพิสูจน์ด้วย `API-29`
+- **Git Strategy & Pull Request Discipline:** การคุม Branch Flow (Feature Branch → Staging → Main) และการแยก PR ให้ตรวจง่ายยังต้องอาศัยวินัยของคน เช่น การแยกงาน Restore Lab 2 ออกจาก Issue 2 (PR #43 → #44 + #45) และ dependency `bcrypt` ที่หายไปตอน rebuild branch ซึ่งเจอเพราะ reviewer รัน `npm ci` ใหม่บนเครื่องที่ตั้งค่าใหม่
+- **Visual Design Fine-Tuning:** บางปัญหาไม่มีเทสต์อัตโนมัติจับได้ เช่น CSS ที่เหลือจาก Vite template (`#root { text-align: center }`) ทำให้ข้อความในตารางและการ์ดทุกใบจัดกึ่งกลาง ซึ่งเห็นได้จากการเปิดดู Screenshot ด้วยตาเท่านั้น
