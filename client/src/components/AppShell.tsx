@@ -1,15 +1,16 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useRequester } from '../context/RequesterContext';
+import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
+import { Badge } from './Badge';
 
-/** Application shell: brand, nav, current Requester identity (ui-spec.md §4.1). */
+/** Application shell: brand, role-based nav, authenticated identity (ui-spec.md §5.3). */
 export function AppShell() {
-  const { requester, changeRequester } = useRequester();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleChangeRequester = () => {
-    changeRequester();
-    navigate('/select-requester', { replace: true });
+  const handleSignOut = async () => {
+    await logout();
+    navigate('/login', { replace: true });
   };
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -34,19 +35,34 @@ export function AppShell() {
             </button>
             <div className="collapse navbar-collapse" id="zg-shell-nav">
               <div className="d-flex flex-column flex-md-row gap-2 me-auto mt-3 mt-md-0 ms-md-3">
-                <NavLink to="/tickets" end className={navLinkClass}>
-                  My Tickets
-                </NavLink>
-                <NavLink to="/tickets/new" className={navLinkClass}>
-                  Create Ticket
-                </NavLink>
+                {user?.role === 'REQUESTER' && (
+                  <>
+                    <NavLink to="/tickets" end className={navLinkClass}>
+                      My Tickets
+                    </NavLink>
+                    <NavLink to="/tickets/new" className={navLinkClass}>
+                      Create Ticket
+                    </NavLink>
+                  </>
+                )}
+                {user?.role === 'IT_STAFF' && (
+                  <NavLink to="/staff/tickets" end className={navLinkClass}>
+                    Ticket Queue
+                  </NavLink>
+                )}
+                {user?.role === 'ADMINISTRATOR' && (
+                  <NavLink to="/admin/users" end className={navLinkClass}>
+                    User Management
+                  </NavLink>
+                )}
               </div>
               <div className="d-flex align-items-center gap-3 mt-3 mt-md-0 text-white">
-                {requester && (
+                {user && (
                   <>
-                    <span data-testid="acting-requester-name">{requester.name}</span>
-                    <Button variant="secondary" onClick={handleChangeRequester}>
-                      Change Requester
+                    <span data-testid="auth-user-name">{user.name}</span>
+                    <Badge kind="role" value={user.role} />
+                    <Button variant="secondary" onClick={handleSignOut}>
+                      Sign Out
                     </Button>
                   </>
                 )}

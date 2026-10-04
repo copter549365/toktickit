@@ -18,7 +18,7 @@ Base URL: `/api`. All response payloads are in JSON format. All request/response
     3. **Custom Header Check:** Mutating requests verify the presence of `X-Requested-With: XMLHttpRequest` (or standard JSON body parsers). Standard HTML form submissions (`<form method="POST">`) cannot set custom HTTP headers or send JSON payloads without triggering a CORS preflight, effectively preventing Cross-Site Request Forgery without requiring separate synchronizer token endpoints.
 
 ### 0.2. Authorization & Middleware Guardrails
-- **`requireAuth`:** Verifies the session cookie; attaches user identity (`req.user`) to the request context. Returns `401 Unauthorized` (`MISSING_OR_INVALID_TOKEN`) if invalid or missing.
+- **`requireAuth`:** Verifies the session cookie, then re-reads the acting user's `isActive`, `role`, and `mustChangePassword` from the database (not from the JWT claims, which may be up to 8h stale) and attaches that live identity (`req.user`) to the request context. Returns `401 Unauthorized` (`MISSING_OR_INVALID_TOKEN`) if the cookie is invalid/missing or the user no longer exists or is inactive. This guarantees an Administrator's deactivate/reset-password/role-change action takes effect on the target's very next request, rather than waiting for token expiry.
 - **`requirePasswordChangeCompleted`:** If `req.user.mustChangePassword === true`, all requests except `POST /api/auth/change-password`, `POST /api/auth/logout`, and `GET /api/auth/me` are rejected with `403 Forbidden` (`PASSWORD_CHANGE_REQUIRED`).
 - **`requireRole(roles...)`:** Enforces RBAC permissions. If `req.user.role` is not in the permitted roles list, the request is rejected with `403 Forbidden` (`FORBIDDEN_ROLE`).
 

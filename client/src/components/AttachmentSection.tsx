@@ -45,7 +45,6 @@ function removeErrorMessage(err: unknown): string {
 }
 
 interface AttachmentSectionProps {
-  requesterId: number;
   ticketId: number;
   attachments: Attachment[];
   onAttachmentAdded: (attachment: Attachment) => void;
@@ -57,7 +56,6 @@ interface AttachmentSectionProps {
  * Create Ticket picker/validation), download, and soft-remove-with-reason (ui-spec.md §4.5).
  */
 export function AttachmentSection({
-  requesterId,
   ticketId,
   attachments,
   onAttachmentAdded,
@@ -92,7 +90,7 @@ export function AttachmentSection({
 
     setIsUploading(true);
     try {
-      const attachment = await uploadTicketAttachment(requesterId, ticketId, file);
+      const attachment = await uploadTicketAttachment(ticketId, file);
       onAttachmentAdded(attachment);
     } catch (err) {
       setUploadError(uploadErrorMessage(err));
@@ -123,7 +121,7 @@ export function AttachmentSection({
     setIsRemoving(true);
     setRemoveError(null);
     try {
-      const updated = await removeAttachment(requesterId, confirmingId, trimmedReason);
+      const updated = await removeAttachment(confirmingId, trimmedReason);
       onAttachmentRemoved(updated);
       setConfirmingId(null);
       setRemovalReasonInput('');
@@ -138,7 +136,7 @@ export function AttachmentSection({
     setDownloadError(null);
     setDownloadingId(attachment.id);
     try {
-      await downloadAttachment(requesterId, attachment.id, attachment.originalFileName);
+      await downloadAttachment(attachment.id, attachment.originalFileName);
     } catch {
       setDownloadError(`Unable to download "${attachment.originalFileName}". Please try again.`);
     } finally {
