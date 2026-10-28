@@ -18,7 +18,7 @@
 
 | Issue | PR | Branch | Reviewer(s) | Verdict |
 |:---:|:---:|---|---|:---:|
-| **Issue 1** — Sprint 4 engineering contract ([#56](https://github.com/copter549365/toktickit/issues/56)) | *(this PR)* | `docs/lab-04-specs` | | Pending |
+| **Issue 1** — Sprint 4 engineering contract ([#56](https://github.com/copter549365/toktickit/issues/56)) | [#65](https://github.com/copter549365/toktickit/pull/65) | `docs/lab-04-specs` | | Pending |
 
 ### 1.1. Key review comments and my responses
 
