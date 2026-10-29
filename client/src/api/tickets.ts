@@ -1,5 +1,6 @@
 import { API_URL } from './config';
 import type {
+  StatusHistoryEntry,
   Ticket,
   TicketDetail,
   CreateTicketInput,
@@ -145,6 +146,20 @@ export async function cancelTicket(ticketId: number, cancellationReason: string)
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorResponse(response));
   }
+}
+
+/** GET /api/tickets/:id/status-history (docs/lab-04/api-spec.md §2.4). Oldest first. */
+export async function fetchStatusHistory(ticketId: number): Promise<StatusHistoryEntry[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/status-history`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorResponse(response));
+  }
+
+  const body = await response.json();
+  return Array.isArray(body?.data) ? body.data : [];
 }
 
 /** GET /api/tickets/:id/comments (ui-spec.md §5.4, BR-04). */

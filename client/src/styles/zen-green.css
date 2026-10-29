@@ -394,6 +394,14 @@ body {
 
 /* ---- Lab 4: Actions Taken (docs/lab-04/ui-spec.md §1, §5, §9, §10) ---- */
 
+/* ui-spec §6.5: Requester's advisory signal on staff screens (pale green, text + icon). */
+.badge-requester-says {
+  background: var(--color-pale);
+  color: var(--color-primary);
+  border: 1px solid var(--color-secondary);
+  white-space: nowrap;
+}
+
 .badge-action-planned {
   background: #f1f5f9;
   color: #334155;

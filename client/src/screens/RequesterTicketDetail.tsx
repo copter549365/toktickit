@@ -16,6 +16,7 @@ import { FormField } from '../components/FormField';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { ActionsTakenSection } from '../components/ActionsTakenSection';
+import { StatusHistory } from '../components/StatusHistory';
 import { formatDate } from '../utils/formatDate';
 import type { Attachment } from '../types/attachment';
 import type { PublicComment } from '../types/comment';
@@ -37,6 +38,7 @@ export function RequesterTicketDetail() {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [workflowRefresh, setWorkflowRefresh] = useState(0);
 
   // Public Comments
   const [comments, setComments] = useState<PublicComment[]>([]);
@@ -172,6 +174,8 @@ export function RequesterTicketDetail() {
     try {
       await cancelTicket(ticketId, trimmedReason);
       setTicket((prev) => (prev ? { ...prev, currentStatus: 'CANCELLED' } : prev));
+      // Lab 4 BR-15/BR-17: the history gains a row and open actions were auto-cancelled.
+      setWorkflowRefresh((n) => n + 1);
       setShowCancelConfirm(false);
       setCancelReason('');
     } catch {
@@ -463,7 +467,14 @@ export function RequesterTicketDetail() {
 
       {/* Actions Taken — Lab 4, read-only for the Requester (docs/lab-04/ui-spec.md §5.1, BR-10) */}
       <div className="mt-4">
-        <ActionsTakenSection key={ticket.id} ticketId={ticket.id} ticketCreatedAt={ticket.createdAt} mode="requester" writable={false} />
+        <ActionsTakenSection
+          key={`${ticket.id}-${workflowRefresh}`}
+          ticketId={ticket.id}
+          ticketCreatedAt={ticket.createdAt}
+          mode="requester"
+          writable={false}
+        />
+        <StatusHistory ticketId={ticket.id} refreshKey={workflowRefresh} />
       </div>
 
       {/* Public Comments Thread (ui-spec.md §5.4, BR-04, BR-14, BR-15) */}

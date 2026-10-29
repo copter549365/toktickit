@@ -622,3 +622,9 @@ The Lab 4 product is Done only when every item below is true on `main`:
   - "Reload latest" shows the latest saved version above the user's draft. The draft is never overwritten.
   - An unchanged Action date/time is not sent on create, so the server records its own now (avoids a "before ticket creation" error when the Ticket was created in the same minute).
   - All dialogs, including the Lab 3 `Modal`, now trap focus, close with Esc, and return focus to their trigger (ui-spec §10).
+- **D-15 (Workflow implementation, Issue 5):**
+  - **Lab 3 tests that conflict with Lab 4 rules:** BR-14 makes Lab 3 tests that resolve a Ticket with no Actions Taken fail with 409. Following D-05, those tests now record a COMPLETED action first, and Lab 3's "summary required for CLOSED" unit assertion follows api-spec §2.2. tests.md §4 lists each change. No other Lab 3 assertion changed.
+  - **Serialization:** status changes and Actions Taken writes take a `SELECT … FOR UPDATE` lock on the Ticket row first. BR-14 is evaluated, and BR-09 re-checked, under that lock. A Resolve racing an action create therefore never leaves an open action on a RESOLVED Ticket (API-L4-20 race test).
+  - **Versioned Lab 3 mutations:** owner, IT Priority, `resolve-indicator`, and Requester cancel use `UPDATE … WHERE version = ?`. With no `expectedVersion`, the version just read is used, so only a true race gives 409.
+  - **Requester cancel note:** the Lab 3 `cancellationReason` becomes the history note for a Requester's own cancellation.
+  - **UI:** confirmations use the shared focus-trapped `Modal`. The Lab 3 labels ("Confirm transition to …", "Confirm", "Never Mind") are kept, so the Lab 3 regression assertions still apply. Opening the Resolve modal re-fetches the Ticket, so the checklist reflects actions added since the page loaded.

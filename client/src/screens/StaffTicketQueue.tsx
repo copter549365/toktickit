@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchCategories } from '../api/categories';
 import { fetchStaffQueue, ApiError } from '../api/staffTickets';
 import { Button } from '../components/Button';
-import { Badge } from '../components/Badge';
+import { Badge, RequesterSaysResolvedPill } from '../components/Badge';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
@@ -393,7 +393,10 @@ export function StaffTicketQueue() {
                         <Badge kind="itPriority" value={t.itPriority} />
                       </td>
                       <td>
-                        <Badge kind="status" value={t.currentStatus} />
+                        <div className="d-flex flex-column align-items-start gap-1">
+                          <Badge kind="status" value={t.currentStatus} />
+                          {t.requesterResolvedIndicator && <RequesterSaysResolvedPill />}
+                        </div>
                       </td>
                       <td className="text-truncate" style={{ maxWidth: 240 }} title={t.summary}>
                         {t.summary}
@@ -442,6 +445,7 @@ export function StaffTicketQueue() {
                     <Badge kind="priority" value={t.requestedPriority} />
                     <Badge kind="itPriority" value={t.itPriority} />
                     <span className="badge bg-light text-dark border">{t.category.name}</span>
+                    {t.requesterResolvedIndicator && <RequesterSaysResolvedPill />}
                   </div>
                   <div className="small text-muted">
                     Owner: {t.owner?.name ?? 'Unassigned'} · Created {formatDate(t.createdAt)}
