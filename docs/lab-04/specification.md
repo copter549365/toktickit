@@ -610,3 +610,7 @@ The Lab 4 product is Done only when every item below is true on `main`:
   - The application has no Ticket delete path, so append-only behavior is unchanged.
   - Restrict would only have guarded against manual SQL.
   - Trade-off (raised in PR #66 review): §7.2 originally used Restrict as a database-level guard for append-only history. Cascade gives that up. The alternative would be to have every test helper delete actions and history before deleting its Tickets. That means editing every Lab 3 suite's cleanup for a guard no application path needs, so Cascade stays.
+- **D-12 (Action create check order, Issue 3):** api-spec §1 fixes the PATCH check order only. POST uses: auth/role → Ticket exists (404) → `clientRequestId` valid (400) → existing `(ticketId, clientRequestId)` returns `200` → Ticket writable (409) → status allowed (400 `INVALID_ACTION_TRANSITION`) → field rules (400 `VALIDATION_FAILED`) → assignee (400 `INVALID_ASSIGNEE`).
+  - The idempotency lookup runs before the writable check. A client retrying a create that already succeeded gets its stored action back, even if the Ticket was resolved in between (BR-20: "nothing is changed").
+  - Two concurrent creates with the same `clientRequestId` both pass the lookup. The loser hits the unique constraint and receives `200` with the winner's row.
+  - PATCH rejects keys outside the editable list with `400 VALIDATION_FAILED` and a field error per key, instead of ignoring them silently ("only the listed keys are accepted").
