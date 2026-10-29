@@ -614,3 +614,11 @@ The Lab 4 product is Done only when every item below is true on `main`:
   - The idempotency lookup runs before the writable check. A client retrying a create that already succeeded gets its stored action back, even if the Ticket was resolved in between (BR-20: "nothing is changed").
   - Two concurrent creates with the same `clientRequestId` both pass the lookup. The loser hits the unique constraint and receives `200` with the winner's row.
   - PATCH rejects keys outside the editable list with `400 VALIDATION_FAILED` and a field error per key, instead of ignoring them silently ("only the listed keys are accepted").
+- **D-13 (Deterministic list order, Issue 4):** `GET /api/tickets` and `GET /api/staff/tickets` sort by the requested column, then by `id` in the same direction.
+  - Without the tiebreaker, Postgres may return tied rows in a different order on each page, so a Ticket can appear on two pages and another can be skipped.
+  - Lab 3 E2E-08 started failing this way once the shared database held many Tickets with the same IT Priority. REG-L4-04 covers it.
+- **D-14 (Actions Taken UI details, Issue 4):**
+  - Edits send only the fields the user changed, so a PATCH never rewrites a field someone else edited.
+  - "Reload latest" shows the latest saved version above the user's draft. The draft is never overwritten.
+  - An unchanged Action date/time is not sent on create, so the server records its own now (avoids a "before ticket creation" error when the Ticket was created in the same minute).
+  - All dialogs, including the Lab 3 `Modal`, now trap focus, close with Esc, and return focus to their trigger (ui-spec §10).

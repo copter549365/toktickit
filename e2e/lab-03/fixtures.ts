@@ -62,6 +62,14 @@ export const E2E_USERS = {
     isActive: true,
     mustChangePassword: true,
   },
+  // Lab 4 (E2E-L4-02): an inactive IT Staff member that Actions Taken must refuse as assignee (BR-06).
+  staffInactive: {
+    name: 'E2E Inactive Staff',
+    email: 'e2e.staff.inactive@toktickit.com',
+    role: 'IT_STAFF',
+    isActive: false,
+    mustChangePassword: false,
+  },
   inactive: {
     name: 'E2E Inactive Requester',
     email: 'e2e.inactive@toktickit.com',

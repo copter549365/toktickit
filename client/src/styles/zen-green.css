@@ -391,3 +391,222 @@ body {
   background: #f3f4f6;
   color: #4b5563;
 }
+
+/* ---- Lab 4: Actions Taken (docs/lab-04/ui-spec.md §1, §5, §9, §10) ---- */
+
+.badge-action-planned {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.badge-action-in-progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge-action-completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-action-cancelled {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badge-action-cancelled .zg-badge__label {
+  text-decoration: line-through;
+}
+
+.zg-visibility-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-pale);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.zg-followup-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-warning-pale);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zg-conflict-banner {
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning);
+  color: var(--color-text);
+  border-radius: 4px;
+  padding: calc(var(--zg-space-unit) * 1.5) calc(var(--zg-space-unit) * 2);
+}
+
+.zg-readonly-value {
+  border-radius: 4px;
+  padding: 6px 12px;
+  min-height: 36px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.zg-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.zg-cell-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.zg-actions-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.zg-actions-table th,
+.zg-actions-table td {
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+
+.zg-actions-table th {
+  overflow-wrap: normal;
+}
+
+.zg-actions-table .zg-badge {
+  white-space: nowrap;
+}
+
+/* Desktop column widths; Description takes the rest. */
+.zg-col-date { width: 11%; }
+.zg-col-result { width: 17%; }
+.zg-col-person { width: 10%; }
+.zg-col-status { width: 12%; }
+.zg-col-followup { width: 11%; }
+.zg-col-buttons { width: 9%; }
+
+/* Tablet: Result and Follow-up merge into Description (§9), so the remaining columns widen. */
+@media (max-width: 991.98px) {
+  .zg-col-date { width: 15%; }
+  .zg-col-person { width: 15%; }
+  .zg-col-status { width: 16%; }
+  .zg-col-buttons { width: 12%; }
+}
+
+/* In the narrow Follow-up column the pill wraps instead of spilling into the next cell. */
+.zg-actions-table .zg-followup-pill {
+  white-space: normal;
+}
+
+.zg-action-row:focus,
+.zg-action-card:focus {
+  outline: 3px solid var(--color-secondary);
+  outline-offset: -3px;
+}
+
+.zg-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1px solid var(--color-field-editable-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.zg-segmented label {
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-field-editable-border);
+}
+
+.zg-segmented label:last-child {
+  border-right: 0;
+}
+
+.zg-segmented input:checked + label {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.zg-segmented input:focus-visible + label {
+  outline: 3px solid var(--color-secondary);
+  outline-offset: -3px;
+}
+
+/* Drawer: 480px right drawer on desktop, 60% on tablet, full-screen sheet on mobile (§9). */
+.zg-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1040;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.zg-drawer {
+  background: var(--color-surface);
+  width: 480px;
+  max-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 991.98px) {
+  .zg-drawer {
+    width: 60%;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .zg-drawer {
+    width: 100%;
+  }
+}
+
+.zg-drawer__header {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-field-editable-border);
+  padding: 16px 20px;
+  z-index: 1;
+}
+
+.zg-drawer__body {
+  padding: 20px;
+  flex: 1;
+}
+
+.zg-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1100;
+  max-width: calc(100% - 32px);
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
