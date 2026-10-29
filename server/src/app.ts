@@ -474,7 +474,8 @@ app.get(
     const [tickets, totalCount] = await Promise.all([
       prisma.ticket.findMany({
         where,
-        orderBy: { [sortBy]: sortOrder },
+        // id breaks ties so pages never overlap when many rows share the sort value.
+        orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
@@ -1590,7 +1591,8 @@ app.get(
       const [tickets, totalCount] = await Promise.all([
         prisma.ticket.findMany({
           where,
-          orderBy: { [sortBy]: sortOrder },
+          // id breaks ties so pages never overlap when many rows share the sort value.
+          orderBy: [{ [sortBy]: sortOrder }, { id: sortOrder }],
           skip: (page - 1) * pageSize,
           take: pageSize,
           include: {

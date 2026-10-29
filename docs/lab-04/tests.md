@@ -94,6 +94,7 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 | REG-L4-01 | Regression | AC-24, FR-18 | Lab 2 and Lab 3 server suites | All pass unchanged | `server/tests/lab-02/*`, `server/tests/lab-03/*` | Planned |
 | REG-L4-02 | Regression | AC-24, FR-18 | Lab 2 and Lab 3 client suites | All pass. Landing-page assertions updated only where D-05 applies, with each change listed in §4. | `client/tests/lab-02/*`, `client/tests/lab-03/*` | Planned |
 | REG-L4-03 | Regression | AC-24, FR-18 | Lab 3 E2E suite | All pass (D-05 landing URL updates only) | `e2e/lab-03/*` | Planned |
+| REG-L4-04 | Regression | AC-24, spec D-13 | Deterministic list pagination (found in Issue 4: Lab 3 E2E-08 failed once the shared DB held many Tickets with the same IT Priority) | My Tickets and the Staff Queue, sorted by a column where 60 Tickets tie, return each Ticket exactly once across pages. The test fails without the `id` tiebreaker. | `server/tests/lab-04/list-pagination.api.test.ts` | Pass |
 | PERF-L4-01 | Performance smoke | AC-28 | Dashboards with 1,000 Tickets and 3,000 actions | Median of 5 runs < 500 ms for each dashboard endpoint | `server/tests/lab-04/performance-smoke.test.ts` | Planned |
 | PERF-L4-02 | Performance smoke | AC-28 | Actions list for one Ticket with 50 actions | Median < 300 ms | `server/tests/lab-04/performance-smoke.test.ts` | Planned |
 
@@ -103,10 +104,10 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 |---|---|---|---|---|---|---|
 | UI-L4-01 | UI Component | FR-13, AC-19 | Requester Dashboard renders API data | 4 cards with label and value; each `href` is built from `drillDown`; three lists; dates shown in Asia/Bangkok | `client/tests/lab-04/RequesterDashboard.test.tsx` | Planned |
 | UI-L4-02 | UI Component | BR-25, AC-19 | Requester empty state | All zeros shown as "0"; empty-list lines; "Create your first ticket" CTA | `client/tests/lab-04/RequesterDashboard.test.tsx` | Planned |
-| UI-L4-03 | UI Component | AC-03, AC-04 | Actions Taken create-form validation | Follow-up note appears and is required when checked; Result required when Completed; server `INVALID_ASSIGNEE` shown under Assignee with `role="alert"` | `client/tests/lab-04/ActionsTaken.test.tsx` | Planned |
-| UI-L4-04 | UI Component | AC-08, BR-10 | Requester read-only mode | List rendered; no Add, Edit, or status controls in the DOM; "Visible to Requester" tag present | `client/tests/lab-04/ActionsTaken.test.tsx` | Planned |
-| UI-L4-05 | UI Component | AC-07, AC-25, FR-20, FR-21 | Conflict, double submit, retry | A double click sends one POST; a retry after a network error reuses the `clientRequestId`; a 409 shows the banner and keeps the draft | `client/tests/lab-04/ActionsTaken.test.tsx` | Planned |
-| UI-L4-06 | UI Component | AC-05, AC-06 | View and edit modes | View drawer is read-only (ivory); Edit only for open actions; Complete requires Result; Cancel modal requires a reason; locked actions show the note | `client/tests/lab-04/ActionsTaken.test.tsx` | Planned |
+| UI-L4-03 | UI Component | AC-03, AC-04 | Actions Taken create-form validation | Follow-up note appears and is required when checked; Result required when Completed; server `INVALID_ASSIGNEE` shown under Assignee with `role="alert"` | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
+| UI-L4-04 | UI Component | AC-08, BR-10 | Requester read-only mode | List rendered; no Add, Edit, or status controls in the DOM; "Visible to Requester" tag present | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
+| UI-L4-05 | UI Component | AC-07, AC-25, FR-20, FR-21 | Conflict, double submit, retry | A double click sends one POST; a retry after a network error reuses the `clientRequestId`; a 409 shows the banner and keeps the draft | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
+| UI-L4-06 | UI Component | AC-05, AC-06 | View and edit modes | View drawer is read-only (ivory); Edit only for open actions; Complete requires Result; Cancel modal requires a reason; locked actions show the note | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-L4-07 | UI Component | AC-17, AC-14 | Workflow control and history | Only `permittedNextStatuses` offered; the Resolve modal checklist disables Confirm when unmet; a 409 gate refreshes the checklist and keeps the summary; success refreshes the badge and history | `client/tests/lab-04/TicketWorkflow.test.tsx` | Planned |
 | UI-L4-08 | UI Component | AC-23 | Staff Dashboard feedback states | Loading skeleton with `aria-busy`; 500 shows the safe error and Retry; 403 shows the forbidden state; no raw error text | `client/tests/lab-04/StaffDashboard.test.tsx` | Planned |
 | UI-L4-09 | UI Component | AC-20, AC-21 | Staff Dashboard content | Status, workload, and priority cards; My Open Actions rows link to `#actions-taken`; User Accounts row only when `userAccounts` is non-null | `client/tests/lab-04/StaffDashboard.test.tsx` | Planned |
@@ -128,9 +129,9 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| E2E-L4-01 | E2E | AC-01, AC-02, AC-05, AC-08 | Multiple performers on one Ticket | Michael (owner) adds an action assigned to Alex; Alex starts and completes it; Michael adds a second; the Requester sees both read-only with the correct Performed by | `e2e/lab-04/actions-taken-flow.spec.ts` | Planned |
-| E2E-L4-02 | E2E | AC-03, AC-04 | Validation and inactive-assignee rejection in the UI | Inline errors; an inactive assignee forced through the request gives the inline server error; the form keeps its data | `e2e/lab-04/actions-taken-flow.spec.ts` | Planned |
-| E2E-L4-03 | E2E | AC-06, AC-07 | Cancel action and concurrent edit | Cancel modal sets CANCELLED and locks the row. Two browser contexts edit the same action: the second sees the conflict banner, reloads, and saves. | `e2e/lab-04/actions-taken-flow.spec.ts` | Planned |
+| E2E-L4-01 | E2E | AC-01, AC-02, AC-05, AC-08 | Multiple performers on one Ticket | Michael (owner) adds an action assigned to Alex; Alex starts and completes it; Michael adds a second; the Requester sees both read-only with the correct Performed by | `e2e/lab-04/actions-taken-flow.spec.ts` | Pass |
+| E2E-L4-02 | E2E | AC-03, AC-04 | Validation and inactive-assignee rejection in the UI | Inline errors; an inactive assignee forced through the request gives the inline server error; the form keeps its data | `e2e/lab-04/actions-taken-flow.spec.ts` | Pass |
+| E2E-L4-03 | E2E | AC-06, AC-07 | Cancel action and concurrent edit | Cancel modal sets CANCELLED and locks the row. Two browser contexts edit the same action: the second sees the conflict banner, reloads, and saves. | `e2e/lab-04/actions-taken-flow.spec.ts` | Pass |
 | E2E-L4-04 | E2E | AC-12, AC-17, AC-14 | Resolution gate in the UI | Resolve modal blocked by an open action; complete the action; resolve; close; history shows each step; only permitted options at each step | `e2e/lab-04/ticket-resolution.spec.ts` | Planned |
 | E2E-L4-05 | E2E | AC-13 | Advisory Requester signal | Requester clicks "Problem Appears Resolved"; status unchanged; staff dashboard "Marked Resolved by Requester" goes up by 1 and drills to the Ticket | `e2e/lab-04/ticket-resolution.spec.ts` | Planned |
 | E2E-L4-06 | E2E | AC-11, AC-16 | Reopen and cancel paths | RESOLVED → REOPENED (reason) → WAITING_FOR_REQUESTER; cancelling a Ticket auto-cancels its open action in the list | `e2e/lab-04/ticket-resolution.spec.ts` | Planned |
@@ -187,3 +188,7 @@ Every AC has at least one automated test. AC-01..AC-23 each also have API or E2E
 - `npm run test:e2e` output for `e2e/lab-03` and `e2e/lab-04`;
 - totals, skipped count (must be 0), and the commit SHA of `main`;
 - any intentional Lab 3 assertion updates (spec D-05), listed with reasons.
+
+Lab 3 test-infrastructure changes so far (no Lab 3 assertion changed):
+- Issue 4: `playwright.config.ts` `testDir` changed from `./e2e/lab-03` to `./e2e`, so `npm run test:e2e` runs the Lab 3 and Lab 4 suites together.
+- Issue 4: `e2e/lab-03/fixtures.ts` adds the inactive IT Staff account `e2e.staff.inactive`, which `global-setup.ts` creates like the others. E2E-L4-02 uses it.

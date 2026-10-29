@@ -16,6 +16,8 @@ import { Button } from '../components/Button';
 import { FormField } from '../components/FormField';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { ActionsTakenSection } from '../components/ActionsTakenSection';
+import { ACTION_WRITABLE_TICKET_STATUSES } from '../types/actionTaken';
 import { formatDate } from '../utils/formatDate';
 import { formatBytes } from '../utils/attachmentValidation';
 import type { PublicComment, InternalNote } from '../types/comment';
@@ -657,6 +659,17 @@ export function StaffTicketDetail() {
           )}
         </div>
       </div>
+
+      {/* Actions Taken — Lab 4, between Attachments and Comments/Notes (docs/lab-04/ui-spec.md §5.1) */}
+      <ActionsTakenSection
+        key={ticket.id}
+        ticketId={ticket.id}
+        ticketCreatedAt={ticket.createdAt}
+        mode="staff"
+        writable={ACTION_WRITABLE_TICKET_STATUSES.includes(ticket.currentStatus)}
+        staffMembers={staffMembers}
+        currentUserId={user?.id}
+      />
 
       {/* Public Comments — standard Zen Green styling, visible to the Requester */}
       <div className="card border-0 shadow-sm mb-4" data-testid="public-comments-section">

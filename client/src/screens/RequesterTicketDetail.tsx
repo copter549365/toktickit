@@ -15,6 +15,7 @@ import { Button } from '../components/Button';
 import { FormField } from '../components/FormField';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { ActionsTakenSection } from '../components/ActionsTakenSection';
 import { formatDate } from '../utils/formatDate';
 import type { Attachment } from '../types/attachment';
 import type { PublicComment } from '../types/comment';
@@ -459,6 +460,11 @@ export function RequesterTicketDetail() {
         onAttachmentAdded={handleAttachmentAdded}
         onAttachmentRemoved={handleAttachmentRemoved}
       />
+
+      {/* Actions Taken — Lab 4, read-only for the Requester (docs/lab-04/ui-spec.md §5.1, BR-10) */}
+      <div className="mt-4">
+        <ActionsTakenSection key={ticket.id} ticketId={ticket.id} ticketCreatedAt={ticket.createdAt} mode="requester" writable={false} />
+      </div>
 
       {/* Public Comments Thread (ui-spec.md §5.4, BR-04, BR-14, BR-15) */}
       <div className="card border-0 shadow-sm mt-4" data-testid="comment-thread">
