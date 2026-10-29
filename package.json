@@ -6,7 +6,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:backup": "node scripts/db-backup.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
