@@ -148,6 +148,13 @@ describe('MIG-L4-03: seed coverage', () => {
     ).toBe(true);
   });
 
+  it('has no RESOLVED, CLOSED or CANCELLED ticket still marked appears-resolved (BR-15)', async () => {
+    const stale = (await seededTickets()).filter(
+      (t) => t.requesterResolvedIndicator && ['RESOLVED', 'CLOSED', 'CANCELLED'].includes(t.currentStatus),
+    );
+    expect(stale.map((t) => t.ticketNumber)).toEqual([]);
+  });
+
   // Whether a given resolvedAt is inside the rolling 7-day window depends on when the seed first
   // ran, so the window boundary itself is tested with fixed fixtures in API-L4-24.
   it('gives RESOLVED/CLOSED seeded tickets a resolvedAt and active ones none (BR-15)', async () => {

@@ -5,14 +5,17 @@
  *
  * Runs in its own scratch database so it can start from a true Lab 3 schema with legacy rows,
  * independent of the shared development database the other suites use:
- *   1. CREATE DATABASE <scratch>, then apply every migration *before* the Lab 4 one.
+ *   1. CREATE DATABASE <scratch>, apply every migration *before* the Lab 4 one, and baseline them
+ *      in Prisma's history with `prisma migrate resolve --applied`.
  *   2. Insert legacy Lab 3 data (Users, Tickets incl. NULL itPriority / RESOLVED / CLOSED,
  *      Attachments, Public Comments, Internal Notes) and snapshot row counts.
- *   3. Apply the Lab 4 migration → data preserved and backfilled (MIG-L4-01).
- *   4. Apply rollback.sql → Lab 4 objects gone, Lab 3 data intact; re-apply → clean (MIG-L4-02).
+ *   3. `prisma migrate deploy` the Lab 4 migration → data preserved and backfilled (MIG-L4-01).
+ *   4. Apply rollback.sql → Lab 4 objects and its _prisma_migrations row gone, Lab 3 data intact;
+ *      `prisma migrate deploy` then re-applies it cleanly (MIG-L4-02).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,6 +71,23 @@ function readSql(file: string): string {
   return fs.readFileSync(file, 'utf-8');
 }
 
+/** Runs the Prisma CLI against the scratch database, the same way an operator would. */
+function prismaCli(args: string): void {
+  execSync(`npx prisma ${args}`, {
+    cwd: projectRoot,
+    env: { ...process.env, DATABASE_URL: scratchUrl.toString() },
+    stdio: 'ignore',
+  });
+}
+
+async function lab4MigrationRecorded(client: pg.Client): Promise<boolean> {
+  const { rows } = await client.query(
+    `SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND rolled_back_at IS NULL`,
+    [LAB4_MIGRATION],
+  );
+  return rows.length > 0;
+}
+
 let before: Record<string, number>;
 
 beforeAll(async () => {
@@ -89,6 +109,7 @@ beforeAll(async () => {
     .sort();
   for (const name of earlier) {
     await db.query(readSql(path.join(MIGRATIONS_DIR, name, 'migration.sql')));
+    prismaCli(`migrate resolve --applied ${name}`);
   }
 
   // 2. Legacy Lab 3 rows.
@@ -99,15 +120,16 @@ beforeAll(async () => {
       (1, 'Legacy Requester', 'legacy.requester@example.com', 'x', 'REQUESTER', now()),
       (2, 'Legacy Staff', 'legacy.staff@example.com', 'x', 'IT_STAFF', now());
     INSERT INTO "Ticket" (id, "ticketNumber", "requesterId", "categoryId", "relatedSystemId", summary, description,
-                          "requestedPriority", "itPriority", "currentStatus", "ticketOwnerId", "createdAt", "updatedAt") VALUES
+                          "requestedPriority", "itPriority", "currentStatus", "ticketOwnerId",
+                          "requesterResolvedIndicator", "createdAt", "updatedAt") VALUES
       (1, 'TKT-2026-000001', 1, 1, 1, 'In progress, no IT priority', 'd', 'HIGH', NULL, 'IN_PROGRESS', 2,
-          '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z'),
+          true, '2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z'),
       (2, 'TKT-2026-000002', 1, 1, 1, 'Resolved legacy', 'd', 'LOW', 'LOW', 'RESOLVED', 2,
-          '2026-09-03T00:00:00Z', '2026-09-04T05:06:07Z'),
+          true, '2026-09-03T00:00:00Z', '2026-09-04T05:06:07Z'),
       (3, 'TKT-2026-000003', 1, 1, 1, 'Closed legacy', 'd', 'MEDIUM', 'HIGH', 'CLOSED', 2,
-          '2026-09-05T00:00:00Z', '2026-09-06T00:00:00Z'),
+          true, '2026-09-05T00:00:00Z', '2026-09-06T00:00:00Z'),
       (4, 'TKT-2026-000004', 1, 1, 1, 'New unassigned', 'd', 'MEDIUM', 'MEDIUM', 'NEW', NULL,
-          '2026-09-07T00:00:00Z', '2026-09-07T00:00:00Z');
+          false, '2026-09-07T00:00:00Z', '2026-09-07T00:00:00Z');
     INSERT INTO "Attachment" ("ticketId", "originalFileName", "storedFileName", "mimeType", "fileSizeBytes")
       VALUES (1, 'a.png', 's-a.png', 'image/png', 10), (2, 'b.pdf', 's-b.pdf', 'application/pdf', 20);
     INSERT INTO "PublicComment" ("ticketId", "authorId", content) VALUES (1, 1, 'hi'), (1, 2, 'hello');
@@ -128,8 +150,12 @@ afterAll(async () => {
 // MIG-L4-01: Lab 4 migration preserves and backfills legacy data
 // ---------------------------------------------------------------------------
 describe('MIG-L4-01: Lab 4 migration on a Lab 3 database', () => {
-  beforeAll(async () => {
-    await db.query(readSql(path.join(LAB4_DIR, 'migration.sql')));
+  beforeAll(() => {
+    prismaCli('migrate deploy');
+  }, 60_000);
+
+  it('records the Lab 4 migration in _prisma_migrations', async () => {
+    expect(await lab4MigrationRecorded(db)).toBe(true);
   });
 
   it('keeps every pre-existing User, Ticket, Attachment, PublicComment and InternalNote row', async () => {
@@ -185,6 +211,11 @@ describe('MIG-L4-01: Lab 4 migration on a Lab 3 database', () => {
     }
   });
 
+  it('clears requesterResolvedIndicator on RESOLVED and CLOSED tickets only (BR-15)', async () => {
+    const { rows } = await db.query(`SELECT id, "requesterResolvedIndicator" AS flag FROM "Ticket" ORDER BY id`);
+    expect(rows.map((r) => r.flag)).toEqual([true, false, false, false]);
+  });
+
   it('enforces one clientRequestId per ticket (BR-20) and new actions default to PLANNED, version 1', async () => {
     const insert = `
       INSERT INTO "ActionTaken" ("ticketId", "clientRequestId", "actionAt", description, "assigneeId",
@@ -202,9 +233,11 @@ describe('MIG-L4-01: Lab 4 migration on a Lab 3 database', () => {
 // MIG-L4-02: rollback.sql restores the Lab 3 schema; the migration re-applies cleanly
 // ---------------------------------------------------------------------------
 describe('MIG-L4-02: rollback and recovery', () => {
-  it('rollback.sql removes every Lab 4 object and keeps the Lab 3 data', async () => {
+  it('rollback.sql removes every Lab 4 object, its migration record, and keeps the Lab 3 data', async () => {
     await db.query(readSql(path.join(LAB4_DIR, 'rollback.sql')));
 
+    // Otherwise `migrate status` reports "up to date" and `migrate deploy` never recreates the tables.
+    expect(await lab4MigrationRecorded(db)).toBe(false);
     expect(await tableExists(db, 'ActionTaken')).toBe(false);
     expect(await tableExists(db, 'TicketStatusChange')).toBe(false);
     expect(await columnExists(db, 'Ticket', 'version')).toBe(false);
@@ -215,8 +248,9 @@ describe('MIG-L4-02: rollback and recovery', () => {
     expect(await counts(db)).toEqual(before);
   });
 
-  it('the Lab 4 migration re-applies cleanly after a rollback', async () => {
-    await db.query(readSql(path.join(LAB4_DIR, 'migration.sql')));
+  it('prisma migrate deploy re-applies the Lab 4 migration cleanly after a rollback', async () => {
+    prismaCli('migrate deploy');
+    expect(await lab4MigrationRecorded(db)).toBe(true);
     expect(await tableExists(db, 'ActionTaken')).toBe(true);
     const { rows } = await db.query(`SELECT COUNT(*)::int AS n FROM "TicketStatusChange"`);
     expect(rows[0].n).toBe(4);

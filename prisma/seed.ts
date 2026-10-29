@@ -308,7 +308,7 @@ async function main() {
       itPriority:        'MEDIUM' as const,
       currentStatus:     'RESOLVED' as const,
       ticketOwnerId:     michaelID,
-      requesterResolvedIndicator: true,
+      requesterResolvedIndicator: false, // BR-15: cleared on resolve
     },
     {
       ticketNumber:      'TKT-2026-000006',
@@ -321,7 +321,7 @@ async function main() {
       itPriority:        'HIGH'   as const,
       currentStatus:     'CLOSED' as const,
       ticketOwnerId:     alexID,
-      requesterResolvedIndicator: true,
+      requesterResolvedIndicator: false, // BR-15: cleared on resolve
     },
     {
       ticketNumber:      'TKT-2026-000007',

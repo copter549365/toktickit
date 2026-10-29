@@ -101,6 +101,10 @@ UPDATE "Ticket" SET "itPriority" = "requestedPriority" WHERE "itPriority" IS NUL
 -- Legacy RESOLVED/CLOSED tickets: best available resolution time is their last update.
 UPDATE "Ticket" SET "resolvedAt" = "updatedAt" WHERE "currentStatus" IN ('RESOLVED', 'CLOSED');
 
+-- BR-15: resolving or cancelling clears the Requester's advisory signal. Lab 3 never did.
+UPDATE "Ticket" SET "requesterResolvedIndicator" = false
+WHERE "requesterResolvedIndicator" AND "currentStatus" IN ('RESOLVED', 'CLOSED', 'CANCELLED');
+
 -- One snapshot history row per legacy ticket, so every ticket has a non-empty history (BR-17).
 INSERT INTO "TicketStatusChange" ("ticketId", "fromStatus", "toStatus", "changedById", "note", "isMigrated", "createdAt")
 SELECT "id", NULL, "currentStatus", NULL, 'Status at Lab 4 migration', true, "updatedAt"

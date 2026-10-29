@@ -445,6 +445,7 @@ Additive only: no column is dropped or renamed. Steps, in one migration:
 3. **Backfill:**
    - `UPDATE "Ticket" SET "itPriority" = "requestedPriority" WHERE "itPriority" IS NULL` (consistent with Lab 3 BR-11).
    - `UPDATE "Ticket" SET "resolvedAt" = "updatedAt" WHERE "currentStatus" IN ('RESOLVED','CLOSED')`.
+   - `UPDATE "Ticket" SET "requesterResolvedIndicator" = false WHERE "currentStatus" IN ('RESOLVED','CLOSED','CANCELLED')`. Lab 3 left the flag set on resolved Tickets; BR-15 clears it.
    - `INSERT INTO "TicketStatusChange" (ticketId, fromStatus, toStatus, changedById, note, isMigrated, createdAt) SELECT id, NULL, currentStatus, NULL, 'Status at Lab 4 migration', true, updatedAt FROM "Ticket"`.
    - Existing Tickets get **no** Actions Taken.
 
@@ -455,7 +456,7 @@ Additive only: no column is dropped or renamed. Steps, in one migration:
 
 ### 7.5. Rollback and Recovery
 - **Before migrating:** take a backup with `npm run db:backup` (`pg_dump -Fc` into `backups/`, which is git-ignored).
-- **Rollback script:** `prisma/migrations/20261030000000_lab4_actions_taken_and_workflow/rollback.sql` drops the two new tables, the enum, the new indexes, and the two new Ticket columns. The `itPriority` backfill is kept because it is harmless and consistent with BR-11. Then run `prisma migrate resolve --rolled-back 20261030000000_lab4_actions_taken_and_workflow`.
+- **Rollback script:** `prisma/migrations/20261030000000_lab4_actions_taken_and_workflow/rollback.sql` drops the two new tables, the enum, the new indexes, and the two new Ticket columns. The `itPriority` backfill and the cleared `requesterResolvedIndicator` are kept because they are harmless and consistent with BR-11 and BR-15. In the same transaction it deletes the migration's `_prisma_migrations` row, so `prisma migrate status` reports it as pending and `prisma migrate deploy` re-applies it. `prisma migrate resolve --rolled-back` is not used: it only accepts failed migrations (P3012).
 - **Testing:** `server/tests/lab-04/migration.test.ts` checks the following.
   - Before and after migration, the row counts of User, Ticket, Attachment, PublicComment, and InternalNote are equal.
   - Legacy Tickets have `version = 1`, zero actions, and exactly one migrated history row.
@@ -608,3 +609,4 @@ The Lab 4 product is Done only when every item below is true on `main`:
   - The first draft used `onDelete: Restrict` on `ActionTaken` and `TicketStatusChange`. That would break the cleanup of every Lab 3 API suite (`prisma.ticket.deleteMany` on its own fixtures) as soon as status changes write history (Issue 5), which conflicts with AC-24.
   - The application has no Ticket delete path, so append-only behavior is unchanged.
   - Restrict would only have guarded against manual SQL.
+  - Trade-off (raised in PR #66 review): §7.2 originally used Restrict as a database-level guard for append-only history. Cascade gives that up. The alternative would be to have every test helper delete actions and history before deleting its Tickets. That means editing every Lab 3 suite's cleanup for a guard no application path needs, so Cascade stays.
