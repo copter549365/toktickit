@@ -41,6 +41,14 @@ enum UserRole {
   ADMINISTRATOR
 }
 
+// Lab 4 — Action Taken lifecycle (BR-07); COMPLETED and CANCELLED are locked
+enum ActionTakenStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -77,6 +85,13 @@ model User {
   publicComments      PublicComment[]
   internalNotes       InternalNote[]
 
+  // Lab 4 — the four distinct Action Taken roles (spec §7.2 decision 4)
+  assignedActions     ActionTaken[]        @relation("actionAssignee")
+  performedActions    ActionTaken[]        @relation("actionPerformer")
+  createdActions      ActionTaken[]        @relation("actionCreator")
+  updatedActions      ActionTaken[]        @relation("actionUpdater")
+  statusChanges       TicketStatusChange[]
+
   @@index([email])
   @@index([role])
 }
@@ -102,11 +117,16 @@ model Ticket {
   // Lab 3 — captured by PATCH /api/staff/tickets/:id/status (BR-13)
   resolutionSummary         String?
   reopenReason              String?
+  // Lab 4 — optimistic concurrency (BR-18) and "Recently Resolved" (BR-15, BR-22)
+  version                   Int          @default(1)
+  resolvedAt                DateTime?
   createdAt                 DateTime     @default(now())
   updatedAt                 DateTime     @updatedAt
   attachments               Attachment[]
   publicComments            PublicComment[]
   internalNotes             InternalNote[]
+  actionsTaken              ActionTaken[]
+  statusChanges             TicketStatusChange[]
 
   @@index([requesterId])
   @@index([categoryId])
@@ -114,6 +134,10 @@ model Ticket {
   @@index([requesterId, createdAt])
   @@index([ticketOwnerId])
   @@index([currentStatus])
+  // Lab 4 — dashboard queries (BR-22, BR-23)
+  @@index([currentStatus, ticketOwnerId])
+  @@index([requesterId, updatedAt])
+  @@index([itPriority, currentStatus])
 }
 
 model Attachment {
@@ -158,4 +182,54 @@ model InternalNote {
 
   @@index([ticketId])
   @@index([authorId])
+}
+
+// Lab 4 — shared work record under a Ticket (BR-01..BR-11); never deleted (BR-08)
+model ActionTaken {
+  id               Int               @id @default(autoincrement())
+  ticketId         Int
+  ticket           Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  // Idempotent create (BR-20)
+  clientRequestId  String            @db.Uuid
+  actionAt         DateTime
+  description      String            @db.VarChar(2000)
+  result           String?           @db.VarChar(2000)
+  status           ActionTakenStatus @default(PLANNED)
+  assigneeId       Int
+  assignee         User              @relation("actionAssignee", fields: [assigneeId], references: [id])
+  // Set automatically when the action enters COMPLETED (BR-05)
+  performedById    Int?
+  performedBy      User?             @relation("actionPerformer", fields: [performedById], references: [id])
+  createdById      Int
+  createdBy        User              @relation("actionCreator", fields: [createdById], references: [id])
+  lastUpdatedById  Int
+  lastUpdatedBy    User              @relation("actionUpdater", fields: [lastUpdatedById], references: [id])
+  followUpRequired Boolean           @default(false)
+  followUpNote     String?           @db.VarChar(1000)
+  attachmentNotes  String?           @db.VarChar(1000)
+  cancelReason     String?           @db.VarChar(500)
+  completedAt      DateTime?
+  version          Int               @default(1)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([ticketId, clientRequestId])
+  @@index([ticketId, actionAt, id])
+  @@index([assigneeId, status])
+}
+
+// Lab 4 — append-only status history (BR-17)
+model TicketStatusChange {
+  id          Int           @id @default(autoincrement())
+  ticketId    Int
+  ticket      Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus  TicketStatus?
+  toStatus    TicketStatus
+  changedById Int?
+  changedBy   User?         @relation(fields: [changedById], references: [id])
+  note        String?       @db.VarChar(2000)
+  isMigrated  Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  @@index([ticketId, createdAt, id])
 }

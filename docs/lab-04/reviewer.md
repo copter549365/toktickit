@@ -18,12 +18,14 @@
 
 | Issue | PR | Branch | Reviewer(s) | Verdict |
 |:---:|:---:|---|---|:---:|
-| **Issue 1** — Sprint 4 engineering contract ([#56](https://github.com/copter549365/toktickit/issues/56)) | [#65](https://github.com/copter549365/toktickit/pull/65) | `docs/lab-04-specs` | | Pending |
+| **Issue 1** — Sprint 4 engineering contract ([#56](https://github.com/copter549365/toktickit/issues/56)) | [#65](https://github.com/copter549365/toktickit/pull/65) | `docs/lab-04-specs` | @AlphabetCG | **Approved & Merged** |
+| **Issue 2** — Actions Taken DB, migration & seed ([#57](https://github.com/copter549365/toktickit/issues/57)) | *(pending)* | `feat/issue-2-actions-taken-db` | | Pending |
 
 ### 1.1. Key review comments and my responses
 
 | PR | Reviewer comment (summary) | My response / change |
 |---|---|---|
+| #65 | "ครบถ้วนสำหรับ Issue นี้ดีครับ ไม่มีปัญหาครับ" (complete for this Issue, no problems): approved without change requests. | — |
 
 ---
 

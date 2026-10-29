@@ -365,7 +365,7 @@ enum ActionTakenStatus { PLANNED  IN_PROGRESS  COMPLETED  CANCELLED }
 model ActionTaken {
   id               Int               @id @default(autoincrement())
   ticketId         Int
-  ticket           Ticket            @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  ticket           Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   clientRequestId  String            @db.Uuid
   actionAt         DateTime
   description      String            @db.VarChar(2000)
@@ -396,7 +396,7 @@ model ActionTaken {
 model TicketStatusChange {
   id          Int           @id @default(autoincrement())
   ticketId    Int
-  ticket      Ticket        @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  ticket      Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   fromStatus  TicketStatus?
   toStatus    TicketStatus
   changedById Int?
@@ -432,10 +432,12 @@ model TicketStatusChange {
    - who should do the work (and can be reassigned);
    - who actually completed it (set automatically);
    - who recorded it (set automatically).
-5. **`onDelete: Restrict` and no DELETE endpoint.** This enforces BR-08 and BR-17 at the database level. Cascade deletes cannot silently drop the work record.
+5. **No DELETE endpoint for actions or history; `onDelete: Cascade` only from the parent Ticket.**
+   - BR-08 and BR-17 are enforced because no route removes an action or a history row, and Tickets themselves are never deleted by the application.
+   - The FK follows the Lab 3 `PublicComment` and `InternalNote` convention, so test fixtures can still remove the Tickets they create (§11 D-11).
 6. **`@@unique([ticketId, clientRequestId])`.** Makes retried creates idempotent (BR-20) through a database constraint instead of a race-prone "check then insert".
 
-### 7.3. Migration (`prisma/migrations/2026110x_lab4_actions_taken_and_workflow`)
+### 7.3. Migration (`prisma/migrations/20261030000000_lab4_actions_taken_and_workflow`)
 
 Additive only: no column is dropped or renamed. Steps, in one migration:
 1. Create the `ActionTakenStatus` enum and the `ActionTaken` and `TicketStatusChange` tables with their foreign keys and indexes.
@@ -453,7 +455,7 @@ Additive only: no column is dropped or renamed. Steps, in one migration:
 
 ### 7.5. Rollback and Recovery
 - **Before migrating:** take a backup with `npm run db:backup` (`pg_dump -Fc` into `backups/`, which is git-ignored).
-- **Rollback script:** `prisma/migrations/<lab4>/rollback.sql` drops the two new tables, the enum, the new indexes, and the two new Ticket columns. The `itPriority` backfill is kept because it is harmless and consistent with BR-11. Then run `prisma migrate resolve --rolled-back <lab4>`.
+- **Rollback script:** `prisma/migrations/20261030000000_lab4_actions_taken_and_workflow/rollback.sql` drops the two new tables, the enum, the new indexes, and the two new Ticket columns. The `itPriority` backfill is kept because it is harmless and consistent with BR-11. Then run `prisma migrate resolve --rolled-back 20261030000000_lab4_actions_taken_and_workflow`.
 - **Testing:** `server/tests/lab-04/migration.test.ts` checks the following.
   - Before and after migration, the row counts of User, Ticket, Attachment, PublicComment, and InternalNote are equal.
   - Legacy Tickets have `version = 1`, zero actions, and exactly one migrated history row.
@@ -602,3 +604,7 @@ The Lab 4 product is Done only when every item below is true on `main`:
 - **D-08 (No automatic status changes from actions):** Recording or completing an action never moves the Ticket. Status changes stay explicit staff decisions with their own confirmation and history entry.
 - **D-09 (Time zone):** All users are on one campus, so display uses Asia/Bangkok. Metrics use rolling windows, which avoids midnight-boundary disagreement between server (UTC) and client.
 - **D-10 (Internal Notes do not touch `updatedAt`):** Prevents a Requester's "Recently Updated" list from revealing that staff wrote something private.
+- **D-11 (Cascade instead of Restrict, Issue 2):**
+  - The first draft used `onDelete: Restrict` on `ActionTaken` and `TicketStatusChange`. That would break the cleanup of every Lab 3 API suite (`prisma.ticket.deleteMany` on its own fixtures) as soon as status changes write history (Issue 5), which conflicts with AC-24.
+  - The application has no Ticket delete path, so append-only behavior is unchanged.
+  - Restrict would only have guarded against manual SQL.
