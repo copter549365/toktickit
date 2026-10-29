@@ -32,6 +32,13 @@ import {
   getAttachmentFilePath,
 } from './utils/attachmentStorage.js';
 import {
+  canTransitionAction,
+  isOpenActionStatus,
+  isUuidV4,
+  validateActionFields,
+  type ActionStatus,
+} from './utils/actionsTaken.js';
+import {
   SESSION_COOKIE_NAME,
   hashPassword,
   comparePassword,
@@ -678,6 +685,12 @@ app.patch(
   },
 );
 
+// Lab 4 BR-19: shared activity (Actions Taken, Public Comments, Attachments) bumps the Ticket's
+// updatedAt without touching version. Internal Notes deliberately do not call this.
+function touchTicketActivity(ticketId: number) {
+  return prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() }, select: { id: true } });
+}
+
 // Public Comments Endpoints (api-spec.md §5 "GET/POST /api/tickets/:id/comments")
 async function loadTicketForComment(
   ticketId: number,
@@ -753,10 +766,13 @@ app.post(
         return;
       }
 
-      const comment = await prisma.publicComment.create({
-        data: { ticketId, authorId: authUser.id, content: validation.trimmed! },
-        include: { author: { select: { id: true, name: true, role: true } } },
-      });
+      const [comment] = await prisma.$transaction([
+        prisma.publicComment.create({
+          data: { ticketId, authorId: authUser.id, content: validation.trimmed! },
+          include: { author: { select: { id: true, name: true, role: true } } },
+        }),
+        touchTicketActivity(ticketId),
+      ]);
 
       res.status(201).json({
         id: comment.id,
@@ -862,6 +878,373 @@ app.post(
   },
 );
 
+// ---------------------------------------------------------------------------
+// Actions Taken (Lab 4 Issue 3 / docs/lab-04/api-spec.md §1)
+// ---------------------------------------------------------------------------
+
+// BR-09: work can be recorded only while the Ticket is still being worked on.
+const ACTION_WRITABLE_TICKET_STATUSES = ['NEW', 'OPEN', 'IN_PROGRESS', 'WAITING_FOR_REQUESTER', 'REOPENED'];
+const ACTION_EDITABLE_KEYS = [
+  'actionAt',
+  'description',
+  'result',
+  'status',
+  'assigneeId',
+  'followUpRequired',
+  'followUpNote',
+  'attachmentNotes',
+  'cancelReason',
+] as const;
+
+const userRef = { select: { id: true, name: true } } as const;
+const actionInclude = {
+  assignee: userRef,
+  performedBy: userRef,
+  createdBy: userRef,
+  lastUpdatedBy: userRef,
+} as const;
+
+const STALE_UPDATE_MESSAGE = 'This record was changed by someone else. Reload to see the latest version.';
+
+type ActionWithUsers = NonNullable<Awaited<ReturnType<typeof findAction>>>;
+
+function findAction(where: { id: number } | { ticketId_clientRequestId: { ticketId: number; clientRequestId: string } }) {
+  return prisma.actionTaken.findUnique({ where, include: actionInclude });
+}
+
+// api-spec.md §0.4 ActionTaken shape. clientRequestId is internal and never returned.
+function serializeAction(a: ActionWithUsers) {
+  return {
+    id: a.id,
+    ticketId: a.ticketId,
+    actionAt: a.actionAt,
+    description: a.description,
+    result: a.result,
+    status: a.status,
+    assignee: a.assignee,
+    performedBy: a.performedBy,
+    createdBy: a.createdBy,
+    lastUpdatedBy: a.lastUpdatedBy,
+    followUpRequired: a.followUpRequired,
+    followUpNote: a.followUpNote,
+    attachmentNotes: a.attachmentNotes,
+    cancelReason: a.cancelReason,
+    completedAt: a.completedAt,
+    version: a.version,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
+  };
+}
+
+// BR-06: an assignee must be an existing, active IT Staff member or Administrator.
+async function isAssignableStaff(assigneeId: unknown): Promise<boolean> {
+  if (typeof assigneeId !== 'number' || !Number.isInteger(assigneeId)) return false;
+  const user = await prisma.user.findUnique({ where: { id: assigneeId }, select: { role: true, isActive: true } });
+  return !!user && user.isActive && (user.role === 'IT_STAFF' || user.role === 'ADMINISTRATOR');
+}
+
+function sendInvalidAssignee(res: Response): void {
+  res.status(400).json({
+    error: 'INVALID_ASSIGNEE',
+    message: 'Choose an active IT Staff member or Administrator as the assignee.',
+    fieldErrors: { assigneeId: 'Choose an active IT Staff member or Administrator.' },
+  });
+}
+
+function sendValidationFailed(res: Response, fieldErrors: Record<string, string>): void {
+  res.status(400).json({
+    error: 'VALIDATION_FAILED',
+    message: 'Some fields are invalid. Please correct them and try again.',
+    fieldErrors,
+  });
+}
+
+function sendTicketNotWritable(res: Response): void {
+  res.status(409).json({
+    error: 'TICKET_NOT_WRITABLE',
+    message: 'Actions cannot be recorded on a resolved, closed, or cancelled ticket.',
+  });
+}
+
+function sendInvalidActionTransition(res: Response): void {
+  res.status(400).json({
+    error: 'INVALID_ACTION_TRANSITION',
+    message: 'That status change is not allowed for this action.',
+  });
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
+}
+
+// GET /api/tickets/:id/actions — FR-04, FR-05, BR-10, BR-11.
+app.get(
+  '/api/tickets/:id/actions',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+
+      // A Requester gets the same 404 for another Requester's Ticket as for a missing one.
+      if (isNaN(ticketId) || !(await loadTicketForComment(ticketId, authUser))) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const actions = await prisma.actionTaken.findMany({
+        where: { ticketId },
+        orderBy: [{ actionAt: 'asc' }, { id: 'asc' }],
+        include: actionInclude,
+      });
+
+      res.status(200).json({
+        data: actions.map(serializeAction),
+        meta: {
+          totalCount: actions.length,
+          openCount: actions.filter((a) => isOpenActionStatus(a.status)).length,
+          completedCount: actions.filter((a) => a.status === 'COMPLETED').length,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching actions taken:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// POST /api/tickets/:id/actions — FR-01, FR-03, FR-06, BR-03..BR-07, BR-09, BR-20.
+app.post(
+  '/api/tickets/:id/actions',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+      const input = (req.body ?? {}) as Record<string, unknown>;
+
+      const ticket = isNaN(ticketId)
+        ? null
+        : await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true, createdAt: true } });
+      if (!ticket) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      if (!isUuidV4(input.clientRequestId)) {
+        sendValidationFailed(res, { clientRequestId: 'A request id (UUID v4) is required.' });
+        return;
+      }
+
+      // BR-20: a retried create returns the stored action and changes nothing.
+      const existing = await findAction({ ticketId_clientRequestId: { ticketId, clientRequestId: input.clientRequestId } });
+      if (existing) {
+        res.status(200).json({ data: serializeAction(existing) });
+        return;
+      }
+
+      if (!ACTION_WRITABLE_TICKET_STATUSES.includes(ticket.currentStatus)) {
+        sendTicketNotWritable(res);
+        return;
+      }
+
+      const status = input.status ?? 'PLANNED';
+      if (!canTransitionAction(null, status)) {
+        sendInvalidActionTransition(res);
+        return;
+      }
+
+      const now = new Date();
+      const { fieldErrors, values } = validateActionFields(
+        { ...input, status: status as ActionStatus },
+        { ticketCreatedAt: ticket.createdAt, now },
+      );
+      if (Object.keys(fieldErrors).length > 0) {
+        sendValidationFailed(res, fieldErrors);
+        return;
+      }
+
+      const assigneeId = input.assigneeId ?? authUser.id;
+      if (!(await isAssignableStaff(assigneeId))) {
+        sendInvalidAssignee(res);
+        return;
+      }
+
+      // BR-05: identity and completion fields come from the session and server clock only.
+      const completed = status === 'COMPLETED';
+      try {
+        const [created] = await prisma.$transaction([
+          prisma.actionTaken.create({
+            data: {
+              ticketId,
+              clientRequestId: input.clientRequestId,
+              status: status as ActionStatus,
+              ...values,
+              assigneeId: assigneeId as number,
+              createdById: authUser.id,
+              lastUpdatedById: authUser.id,
+              performedById: completed ? authUser.id : null,
+              completedAt: completed ? now : null,
+            },
+            include: actionInclude,
+          }),
+          touchTicketActivity(ticketId),
+        ]);
+        res.status(201).json({ data: serializeAction(created) });
+      } catch (error) {
+        // A concurrent retry won the race on @@unique([ticketId, clientRequestId]).
+        if (!isUniqueViolation(error)) throw error;
+        const winner = await findAction({ ticketId_clientRequestId: { ticketId, clientRequestId: input.clientRequestId } });
+        res.status(200).json({ data: serializeAction(winner!) });
+      }
+    } catch (error) {
+      console.error('Error creating action taken:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// PATCH /api/tickets/:id/actions/:actionId — FR-02, BR-03..BR-07, BR-09, BR-18.
+// Check order (api-spec.md §1): ticket → action → ticket writable → locked → version → validation,
+// so a stale or locked edit fails without revealing validation details.
+app.patch(
+  '/api/tickets/:id/actions/:actionId',
+  enforceJsonRequestSecurity,
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+      const actionId = parseInt(req.params.actionId as string, 10);
+      const input = (req.body ?? {}) as Record<string, unknown>;
+
+      const ticket = isNaN(ticketId)
+        ? null
+        : await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true, createdAt: true } });
+      if (!ticket) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const action = isNaN(actionId)
+        ? null
+        : await prisma.actionTaken.findUnique({ where: { id: actionId }, include: { assignee: { select: { isActive: true } } } });
+      if (!action || action.ticketId !== ticketId) {
+        res.status(404).json({ error: 'ACTION_NOT_FOUND', message: 'That action was not found on this ticket.' });
+        return;
+      }
+
+      if (!ACTION_WRITABLE_TICKET_STATUSES.includes(ticket.currentStatus)) {
+        sendTicketNotWritable(res);
+        return;
+      }
+
+      if (!isOpenActionStatus(action.status)) {
+        res.status(409).json({
+          error: 'ACTION_LOCKED',
+          message: 'Completed and cancelled actions cannot be changed. Record a new action instead.',
+        });
+        return;
+      }
+
+      const expectedVersion = input.expectedVersion;
+      if (typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion)) {
+        sendValidationFailed(res, { expectedVersion: 'The version you are editing is required.' });
+        return;
+      }
+      if (expectedVersion !== action.version) {
+        res.status(409).json({ error: 'STALE_UPDATE', message: STALE_UPDATE_MESSAGE, currentVersion: action.version });
+        return;
+      }
+
+      const unknownKeys = Object.keys(input).filter(
+        (k) => k !== 'expectedVersion' && !(ACTION_EDITABLE_KEYS as readonly string[]).includes(k),
+      );
+      if (unknownKeys.length > 0) {
+        sendValidationFailed(res, Object.fromEntries(unknownKeys.map((k) => [k, 'This field cannot be changed.'])));
+        return;
+      }
+
+      const nextStatus = input.status === undefined ? action.status : input.status;
+      if (input.status !== undefined && !canTransitionAction(action.status, input.status)) {
+        sendInvalidActionTransition(res);
+        return;
+      }
+
+      // Field rules apply to the stored row overlaid with the body.
+      const pick = <K extends (typeof ACTION_EDITABLE_KEYS)[number]>(key: K, stored: unknown) =>
+        Object.prototype.hasOwnProperty.call(input, key) ? input[key] : stored;
+      const now = new Date();
+      const { fieldErrors, values } = validateActionFields(
+        {
+          actionAt: pick('actionAt', action.actionAt),
+          description: pick('description', action.description),
+          result: pick('result', action.result),
+          status: nextStatus as ActionStatus,
+          followUpRequired: pick('followUpRequired', action.followUpRequired),
+          followUpNote: pick('followUpNote', action.followUpNote),
+          attachmentNotes: pick('attachmentNotes', action.attachmentNotes),
+          cancelReason: pick('cancelReason', action.cancelReason),
+        },
+        { ticketCreatedAt: ticket.createdAt, now },
+      );
+      if (Object.keys(fieldErrors).length > 0) {
+        sendValidationFailed(res, fieldErrors);
+        return;
+      }
+
+      // BR-06: a supplied assignee must be valid; an inactive stored one must be replaced first.
+      if (input.assigneeId !== undefined) {
+        if (!(await isAssignableStaff(input.assigneeId))) {
+          sendInvalidAssignee(res);
+          return;
+        }
+      } else if (!action.assignee.isActive) {
+        sendInvalidAssignee(res);
+        return;
+      }
+
+      const completing = nextStatus === 'COMPLETED';
+      // BR-18: the version check and increment are one atomic UPDATE … WHERE version = ?.
+      const updated = await prisma.$transaction(async (tx) => {
+        const { count } = await tx.actionTaken.updateMany({
+          where: { id: actionId, version: expectedVersion },
+          data: {
+            ...values,
+            status: nextStatus as ActionStatus,
+            ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId as number } : {}),
+            lastUpdatedById: authUser.id,
+            ...(completing ? { performedById: authUser.id, completedAt: now } : {}),
+            version: { increment: 1 },
+          },
+        });
+        if (count === 0) return null;
+        await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: now }, select: { id: true } });
+        return tx.actionTaken.findUniqueOrThrow({ where: { id: actionId }, include: actionInclude });
+      });
+
+      if (!updated) {
+        const current = await prisma.actionTaken.findUnique({ where: { id: actionId }, select: { version: true } });
+        res.status(409).json({ error: 'STALE_UPDATE', message: STALE_UPDATE_MESSAGE, currentVersion: current?.version });
+        return;
+      }
+
+      res.status(200).json({ data: serializeAction(updated) });
+    } catch (error) {
+      console.error('Error updating action taken:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// BR-08: there is deliberately no DELETE route for Actions Taken.
+
 // Upload Attachment Endpoint (api-spec.md §3 "POST /api/tickets/:id/attachments")
 app.post(
   '/api/tickets/:id/attachments',
@@ -938,16 +1321,19 @@ app.post(
       fs.writeFileSync(filePath, req.file.buffer);
 
       // Persist attachment in database
-      const attachment = await prisma.attachment.create({
-        data: {
-          ticketId: ticket.id,
-          originalFileName: req.file.originalname,
-          storedFileName,
-          mimeType: req.file.mimetype,
-          fileSizeBytes: req.file.size,
-          isRemoved: false,
-        },
-      });
+      const [attachment] = await prisma.$transaction([
+        prisma.attachment.create({
+          data: {
+            ticketId: ticket.id,
+            originalFileName: req.file.originalname,
+            storedFileName,
+            mimeType: req.file.mimetype,
+            fileSizeBytes: req.file.size,
+            isRemoved: false,
+          },
+        }),
+        touchTicketActivity(ticket.id),
+      ]);
 
       res.status(201).json({
         id: attachment.id,
@@ -1101,14 +1487,17 @@ app.delete(
       return;
     }
 
-    const updated = await prisma.attachment.update({
-      where: { id: attachmentId },
-      data: {
-        isRemoved: true,
-        removedAt: new Date(),
-        removalReason: reasonValidation.trimmed,
-      },
-    });
+    const [updated] = await prisma.$transaction([
+      prisma.attachment.update({
+        where: { id: attachmentId },
+        data: {
+          isRemoved: true,
+          removedAt: new Date(),
+          removalReason: reasonValidation.trimmed,
+        },
+      }),
+      touchTicketActivity(attachment.ticketId),
+    ]);
 
     res.status(200).json({
       id: updated.id,

@@ -19,7 +19,8 @@
 | Issue | PR | Branch | Reviewer(s) | Verdict |
 |:---:|:---:|---|---|:---:|
 | **Issue 1** — Sprint 4 engineering contract ([#56](https://github.com/copter549365/toktickit/issues/56)) | [#65](https://github.com/copter549365/toktickit/pull/65) | `docs/lab-04-specs` | @AlphabetCG | **Approved & Merged** |
-| **Issue 2** — Actions Taken DB, migration & seed ([#57](https://github.com/copter549365/toktickit/issues/57)) | [#66](https://github.com/copter549365/toktickit/pull/66) | `feat/issue-2-actions-taken-db` | | Pending |
+| **Issue 2** — Actions Taken DB, migration & seed ([#57](https://github.com/copter549365/toktickit/issues/57)) | [#66](https://github.com/copter549365/toktickit/pull/66) | `feat/issue-2-actions-taken-db` | @AlphabetCG | Changes Requested → **Approved & Merged** |
+| **Issue 3** — Actions Taken API & authorization ([#58](https://github.com/copter549365/toktickit/issues/58)) | [#67](https://github.com/copter549365/toktickit/pull/67) | `feat/issue-3-actions-taken-api` | | Pending |
 
 ### 1.1. Key review comments and my responses
 
