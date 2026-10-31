@@ -157,9 +157,9 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
       await page.screenshot({ path: screenshotPath('user-management', `${viewportName}-edit-user`), fullPage: true });
     });
 
-    test('requester regression: My Tickets home and sign-out reachable', async ({ page }) => {
+    test('requester regression: Dashboard home and sign-out reachable', async ({ page }) => {
       await loginAs(page, 'requester');
-      await expect(page).toHaveURL(/\/tickets$/);
+      await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05
       await checkLayout(page);
       await page.screenshot({ path: screenshotPath('authentication', `${viewportName}-requester-home`), fullPage: true });
 

@@ -11,11 +11,12 @@ import { API_URL, fillLogin, loginAs, screenshotPath, signOut } from './helpers'
 test.describe('E2E-01: Login, role home, and logout', () => {
   test('each role lands on its own home with name, role badge, and only its own navigation', async ({ page }) => {
     const cases = [
-      { key: 'requester', home: '/tickets', badge: 'Requester', nav: ['My Tickets', 'Create Ticket'] },
+      // Lab 4 D-05: the Requester now lands on the Dashboard and gets a Dashboard nav item.
+      { key: 'requester', home: '/dashboard', badge: 'Requester', nav: ['Dashboard', 'My Tickets', 'Create Ticket'] },
       { key: 'staff', home: '/staff/tickets', badge: 'IT Staff', nav: ['Ticket Queue'] },
       { key: 'admin', home: '/admin/users', badge: 'Administrator', nav: ['User Management'] },
     ] as const;
-    const allNav = ['My Tickets', 'Create Ticket', 'Ticket Queue', 'User Management'];
+    const allNav = ['Dashboard', 'My Tickets', 'Create Ticket', 'Ticket Queue', 'User Management'];
 
     for (const c of cases) {
       await loginAs(page, c.key);
@@ -156,7 +157,7 @@ test.describe('E2E-02: Mandatory first-login password change', () => {
 
     await page.locator('#current-password').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'Update Password and Enter' }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05
     await expect(page.getByTestId('auth-user-name')).toHaveText(E2E_USERS.firstLogin.name);
 
     // The old initial password no longer works; the new one does, without the gate.
@@ -164,6 +165,6 @@ test.describe('E2E-02: Mandatory first-login password change', () => {
     await fillLogin(page, E2E_USERS.firstLogin.email, E2E_PASSWORD);
     await expect(page.getByRole('alert')).toHaveText('Invalid email or password.');
     await fillLogin(page, E2E_USERS.firstLogin.email, newPassword);
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05
   });
 });

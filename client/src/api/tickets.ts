@@ -69,6 +69,7 @@ export async function fetchMyTickets(
   if (params.categoryId) query.set('categoryId', String(params.categoryId));
   if (params.requestedPriority) query.set('requestedPriority', params.requestedPriority);
   if (params.currentStatus) query.set('currentStatus', params.currentStatus);
+  else if (params.statusGroup) query.set('statusGroup', params.statusGroup);
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
   if (params.page) query.set('page', String(params.page));
@@ -120,7 +121,6 @@ export async function uploadTicketAttachment(ticketId: number, file: File): Prom
   return response.json();
 }
 
-/** PATCH /api/tickets/:id/resolve-indicator (ui-spec.md §5.4, FR-13, BR-06). */
 /**
  * PATCH /api/tickets/:id/resolve-indicator (ui-spec.md §5.4, FR-13, BR-06). Lab 4 D-03: sends the
  * version on screen, so a change made by IT Staff meanwhile gives 409 STALE_UPDATE.

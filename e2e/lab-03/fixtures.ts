@@ -62,6 +62,15 @@ export const E2E_USERS = {
     isActive: true,
     mustChangePassword: true,
   },
+  // Lab 4 (E2E-L4-09): a Requester who never creates a ticket, for the all-zero dashboard. It is the
+  // E2E twin of the seeded nina.wong, whose password the suite must not change.
+  requesterEmpty: {
+    name: 'E2E Requester Empty',
+    email: 'e2e.requester.empty@toktickit.com',
+    role: 'REQUESTER',
+    isActive: true,
+    mustChangePassword: false,
+  },
   // Lab 4 (E2E-L4-02): an inactive IT Staff member that Actions Taken must refuse as assignee (BR-06).
   staffInactive: {
     name: 'E2E Inactive Staff',

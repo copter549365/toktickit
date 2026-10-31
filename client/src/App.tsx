@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireRole } from './components/RequireRole';
 import { AppShell } from './components/AppShell';
@@ -11,28 +11,7 @@ import { RequesterTicketDetail } from './screens/RequesterTicketDetail';
 import { StaffTicketQueue } from './screens/StaffTicketQueue';
 import { StaffTicketDetail } from './screens/StaffTicketDetail';
 import { UserManagement } from './screens/UserManagement';
-
-/**
- * Role-appropriate landing screen. Requesters continue into the Lab 2 ticket screens, IT Staff
- * land on their Ticket Queue, and Administrators land on User Management (ui-spec.md §5.3, §5.7).
- */
-function AuthenticatedHome() {
-  const { user } = useAuth();
-
-  if (user?.role === 'REQUESTER') {
-    return <Navigate to="/tickets" replace />;
-  }
-
-  if (user?.role === 'IT_STAFF') {
-    return <Navigate to="/staff/tickets" replace />;
-  }
-
-  if (user?.role === 'ADMINISTRATOR') {
-    return <Navigate to="/admin/users" replace />;
-  }
-
-  return null;
-}
+import { DashboardHome } from './screens/Dashboard';
 
 function App() {
   return (
@@ -43,7 +22,9 @@ function App() {
           <Route path="/change-password" element={<ChangePassword />} />
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
-              <Route index element={<AuthenticatedHome />} />
+              {/* FR-17, D-05: `/` and the post-login redirect open the role's dashboard. */}
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<DashboardHome />} />
               <Route element={<RequireRole roles={['REQUESTER']} />}>
                 <Route path="tickets" element={<MyTickets />} />
                 <Route path="tickets/new" element={<CreateTicket />} />

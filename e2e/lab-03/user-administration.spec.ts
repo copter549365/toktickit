@@ -170,7 +170,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
 
     await signOut(page);
     await fillLogin(page, email, firstOwnPassword);
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05: the Requester home
     await expect(page.locator('header').getByText('Requester', { exact: true })).toBeVisible();
   });
 
@@ -195,7 +195,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
     await page.goto('/tickets');
     await expect(page).toHaveURL(/\/change-password$/);
     await completePasswordChange(page, resetTo, 'SecondSecret#2026');
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05: the Requester home
   });
 
   test('deactivation blocks login; reactivation restores it', async ({ page }) => {
@@ -218,7 +218,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
     await signOut(page);
 
     await fillLogin(page, email, 'SecondSecret#2026');
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05: the Requester home
   });
 });
 

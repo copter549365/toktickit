@@ -1,4 +1,5 @@
-export const SORTABLE_FIELDS = ['createdAt', 'ticketNumber', 'summary'] as const;
+// Lab 4 adds updatedAt for the dashboard "Recently Updated → View all" drill-down (FR-16).
+export const SORTABLE_FIELDS = ['createdAt', 'ticketNumber', 'summary', 'updatedAt'] as const;
 export type TicketSortField = (typeof SORTABLE_FIELDS)[number];
 
 export const SORT_ORDERS = ['asc', 'desc'] as const;
@@ -24,11 +25,17 @@ export const TICKET_STATUSES = [
 ] as const;
 export type TicketStatusFilter = (typeof TICKET_STATUSES)[number];
 
+/** Lab 4 (FR-16): `statusGroup=active` means the BR-21 active set. */
+export const STATUS_GROUPS = ['active'] as const;
+export type StatusGroup = (typeof STATUS_GROUPS)[number];
+
 export interface NormalizedTicketListQuery {
   search?: string;
   categoryId?: number;
   requestedPriority?: RequestedPriority;
   currentStatus?: TicketStatusFilter;
+  /** Only set when no valid `currentStatus` is given: `currentStatus` wins. */
+  statusGroup?: StatusGroup;
   sortBy: TicketSortField;
   sortOrder: SortOrder;
   page: number;
@@ -76,6 +83,8 @@ export function normalizeTicketListQuery(query: Record<string, unknown>): Normal
 
   if ((TICKET_STATUSES as readonly string[]).includes(query.currentStatus as string)) {
     normalized.currentStatus = query.currentStatus as TicketStatusFilter;
+  } else if ((STATUS_GROUPS as readonly string[]).includes(query.statusGroup as string)) {
+    normalized.statusGroup = query.statusGroup as StatusGroup;
   }
 
   return normalized;

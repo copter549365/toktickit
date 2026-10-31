@@ -9,7 +9,7 @@ import { actionRow, actionsSection, createActionViaApi, openStaffTicket, prepare
  *   and only the permitted next statuses are offered at every step.
  * - L4-06: RESOLVED → REOPENED (reason) → WAITING_FOR_REQUESTER; cancelling a Ticket auto-cancels
  *   its open action in the list.
- * E2E-L4-05 needs the Staff Dashboard and is added with it (Issue 6).
+ * E2E-L4-05 needs the Staff Dashboard and is added with it (Issue 7).
  */
 
 const statusSelect = (page: Page) => page.locator('#status-select');
