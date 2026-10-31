@@ -36,6 +36,7 @@ async function completePasswordChange(page: Page, currentPassword: string, newPa
 test.describe('E2E-05: User list, search, and role filter', () => {
   test('lists Name, Email, Role, Status and Edit; search and role filter narrow the list', async ({ page }) => {
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     await expect(page).toHaveURL(/\/admin\/users$/);
 
     const table = page.getByTestId('user-management-table');
@@ -83,6 +84,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
 
   test('create validates input, rejects duplicates and invalid roles, and creates a user with one role', async ({ page }) => {
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     await page.getByRole('button', { name: 'Create New User' }).click();
     const dialog = page.getByRole('dialog', { name: 'Create New User' });
 
@@ -142,12 +144,13 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
   test('the new user must change the initial password at first login', async ({ page }) => {
     await fillLogin(page, email, initialPassword);
     await completePasswordChange(page, initialPassword, firstOwnPassword);
-    await expect(page).toHaveURL(/\/staff\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05: sign-in now lands on the Dashboard
     await expect(page.getByTestId('auth-user-name')).toHaveText(name);
   });
 
   test('admin edits name, email, and role; the change takes effect for the user', async ({ page }) => {
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     const dialog = await openEdit(page, email);
     await dialog.locator('#edit-name').fill(`${name} Renamed`);
     await dialog.locator('#edit-role').selectOption('REQUESTER');
@@ -176,6 +179,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
 
   test('a new initial password forces another change at next login', async ({ page }) => {
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     const dialog = await openEdit(page, email);
     await expect(dialog.getByRole('button', { name: 'Reset Password' })).toBeDisabled();
     await dialog.getByRole('button', { name: 'Generate' }).click();
@@ -200,6 +204,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
 
   test('deactivation blocks login; reactivation restores it', async ({ page }) => {
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     let dialog = await openEdit(page, email);
     await dialog.getByLabel('Active').uncheck();
     await dialog.getByRole('button', { name: 'Save Changes' }).click();
@@ -211,6 +216,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
     await expect(page.getByRole('alert')).toHaveText('This account has been deactivated. Please contact an administrator.');
 
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     dialog = await openEdit(page, email);
     await dialog.getByLabel('Active').check();
     await dialog.getByRole('button', { name: 'Save Changes' }).click();
@@ -225,6 +231,7 @@ test.describe.serial('E2E-05 / E2E-09: Create, edit, reset password, deactivate'
 test.describe('E2E-05: Administrator safety rules', () => {
   test('an Administrator cannot deactivate their own account (UI and API)', async ({ page }) => {
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     const dialog = await openEdit(page, E2E_USERS.admin.email);
     const toggle = dialog.getByLabel('Active');
     await expect(toggle).toBeDisabled();
@@ -249,6 +256,7 @@ test.describe('E2E-05: Administrator safety rules', () => {
     // server/tests/lab-03/users-admin.api.test.ts. Here the server's refusal is simulated to verify
     // the UI presents it clearly and keeps the dialog open without applying the change.
     await loginAs(page, 'admin');
+    await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
     await page.route('**/api/admin/users/*', (route) =>
       route.request().method() === 'PATCH'
         ? route.fulfill({

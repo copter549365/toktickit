@@ -48,10 +48,16 @@ export function AppShell() {
                     </NavLink>
                   </>
                 )}
-                {user?.role === 'IT_STAFF' && (
-                  <NavLink to="/staff/tickets" end className={navLinkClass}>
-                    Ticket Queue
-                  </NavLink>
+                {(user?.role === 'IT_STAFF' || user?.role === 'ADMINISTRATOR') && (
+                  <>
+                    <NavLink to="/dashboard" end className={navLinkClass}>
+                      Dashboard
+                    </NavLink>
+                    {/* BR-29: Administrators may do every IT Staff ticket operation, so they get the Queue too. */}
+                    <NavLink to="/staff/tickets" end className={navLinkClass}>
+                      Ticket Queue
+                    </NavLink>
+                  </>
                 )}
                 {user?.role === 'ADMINISTRATOR' && (
                   <NavLink to="/admin/users" end className={navLinkClass}>

@@ -34,6 +34,8 @@ export async function fetchStaffQueue(
   if (params.requestedPriority) query.set('requestedPriority', params.requestedPriority);
   if (params.itPriority) query.set('itPriority', params.itPriority);
   if (params.currentStatus) query.set('currentStatus', params.currentStatus);
+  else if (params.statusGroup) query.set('statusGroup', params.statusGroup);
+  if (params.requesterResolvedIndicator) query.set('requesterResolvedIndicator', 'true');
   if (params.ticketOwnerId !== undefined) query.set('ticketOwnerId', String(params.ticketOwnerId));
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);

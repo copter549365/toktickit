@@ -22,6 +22,7 @@ export async function fetchAdminUsers(params: AdminUserListParams = {}): Promise
   const query = new URLSearchParams();
   if (params.search) query.set('search', params.search);
   if (params.role) query.set('role', params.role);
+  if (params.isActive !== undefined) query.set('isActive', String(params.isActive));
 
   const response = await fetch(`${API_URL}/api/admin/users?${query.toString()}`, {
     credentials: 'include',

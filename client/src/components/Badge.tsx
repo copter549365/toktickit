@@ -123,4 +123,13 @@ export function RequesterSaysResolvedPill() {
   );
 }
 
+/** Lab 4 ui-spec §1.3: amber "Follow-up required" pill, as text with a flag icon. */
+export function FollowUpPill() {
+  return (
+    <span className="zg-followup-pill">
+      <span aria-hidden="true">⚑</span> Follow-up required
+    </span>
+  );
+}
+
 export default Badge;

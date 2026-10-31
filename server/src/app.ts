@@ -33,8 +33,15 @@ import {
   DISPLAY_TIME_ZONE,
   RECENT_WINDOW_DAYS,
   REQUESTER_LIST_VIEW_ALL,
+  STAFF_LIST_VIEW_ALL,
+  DASHBOARD_ACTION_SELECT,
+  buildPriorityCards,
   buildRequesterCards,
+  buildStatusCards,
+  buildUserAccountCards,
+  buildWorkloadCards,
   recentWindowStart,
+  toDashboardActionItem,
   toDashboardTicketItem,
 } from './utils/dashboard.js';
 import {
@@ -590,6 +597,96 @@ app.get(
     });
   } catch (error) {
     console.error('Error building requester dashboard:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' });
+  }
+  },
+);
+
+// IT Staff / Administrator Dashboard (api-spec.md §3 "GET /api/dashboard/staff"; BR-21, BR-23,
+// BR-24, BR-26). All Tickets count; "my" values use the caller's id. Administrators also get
+// user-account counts.
+app.get(
+  '/api/dashboard/staff',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (req, res) => {
+  try {
+    const authUser = (req as any).user as AuthenticatedUser;
+    const now = new Date();
+    const active = { currentStatus: { in: [...ACTIVE_TICKET_STATUSES] } };
+    const myOpenActionsWhere = { assigneeId: authUser.id, status: { in: [...OPEN_ACTION_STATUSES] } };
+
+    const [
+      statusGroups,
+      priorityGroups,
+      unassignedActive,
+      myActive,
+      requesterMarkedResolved,
+      myOpenActionsCount,
+      myOpenActions,
+      urgent,
+      recentlyUpdated,
+    ] = await Promise.all([
+      prisma.ticket.groupBy({ by: ['currentStatus'], _count: { _all: true } }),
+      prisma.ticket.groupBy({ by: ['itPriority'], where: active, _count: { _all: true } }),
+      prisma.ticket.count({ where: { ...active, ticketOwnerId: null } }),
+      prisma.ticket.count({ where: { ...active, ticketOwnerId: authUser.id } }),
+      prisma.ticket.count({ where: { ...active, requesterResolvedIndicator: true } }),
+      prisma.actionTaken.count({ where: myOpenActionsWhere }),
+      prisma.actionTaken.findMany({
+        where: myOpenActionsWhere,
+        orderBy: [{ actionAt: 'asc' }, { id: 'desc' }],
+        take: DASHBOARD_LIST_LIMIT,
+        select: DASHBOARD_ACTION_SELECT,
+      }),
+      prisma.ticket.findMany({
+        where: { ...active, itPriority: 'HIGH' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'desc' }],
+        take: DASHBOARD_LIST_LIMIT,
+        select: DASHBOARD_TICKET_SELECT,
+      }),
+      prisma.ticket.findMany({
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take: DASHBOARD_LIST_LIMIT,
+        select: DASHBOARD_TICKET_SELECT,
+      }),
+    ]);
+
+    let userAccounts = null;
+    if (authUser.role === 'ADMINISTRATOR') {
+      const [activeRequesters, activeItStaff, activeAdministrators, inactiveUsers] = await Promise.all([
+        prisma.user.count({ where: { role: 'REQUESTER', isActive: true } }),
+        prisma.user.count({ where: { role: 'IT_STAFF', isActive: true } }),
+        prisma.user.count({ where: { role: 'ADMINISTRATOR', isActive: true } }),
+        prisma.user.count({ where: { isActive: false } }),
+      ]);
+      userAccounts = buildUserAccountCards({ activeRequesters, activeItStaff, activeAdministrators, inactiveUsers });
+    }
+
+    const countsBy = <K extends string>(groups: { _count: { _all: number } }[], key: (g: any) => K | null) =>
+      Object.fromEntries(groups.filter((g) => key(g) !== null).map((g) => [key(g), g._count._all]));
+
+    res.status(200).json({
+      generatedAt: now.toISOString(),
+      displayTimeZone: DISPLAY_TIME_ZONE,
+      statusCards: buildStatusCards(countsBy(statusGroups, (g) => g.currentStatus)),
+      workloadCards: buildWorkloadCards(authUser.id, {
+        unassignedActive,
+        myActive,
+        requesterMarkedResolved,
+        myOpenActions: myOpenActionsCount,
+      }),
+      priorityCards: buildPriorityCards(countsBy(priorityGroups, (g) => g.itPriority)),
+      lists: {
+        myOpenActions: { items: myOpenActions.map(toDashboardActionItem) },
+        urgent: { items: urgent.map(toDashboardTicketItem), viewAll: STAFF_LIST_VIEW_ALL.urgent },
+        recentlyUpdated: { items: recentlyUpdated.map(toDashboardTicketItem), viewAll: STAFF_LIST_VIEW_ALL.recentlyUpdated },
+      },
+      userAccounts,
+    });
+  } catch (error) {
+    console.error('Error building staff dashboard:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' });
   }
   },
@@ -1808,6 +1905,8 @@ app.get(
         requestedPriority,
         itPriority,
         currentStatus,
+        statusGroup,
+        requesterResolvedIndicator,
         ticketOwnerId,
         sortBy,
         sortOrder,
@@ -1839,6 +1938,12 @@ app.get(
 
       if (currentStatus) {
         where.currentStatus = currentStatus;
+      } else if (statusGroup === 'active') {
+        where.currentStatus = { in: [...ACTIVE_TICKET_STATUSES] };
+      }
+
+      if (requesterResolvedIndicator) {
+        where.requesterResolvedIndicator = true;
       }
 
       if (ticketOwnerId === 'unassigned') {
@@ -2302,6 +2407,11 @@ app.get(
 
       if (isValidUserRole(req.query.role)) {
         where.role = req.query.role;
+      }
+
+      // Lab 4 D-18: lets the Administrator dashboard's account cards drill to an exact list.
+      if (req.query.isActive === 'true' || req.query.isActive === 'false') {
+        where.isActive = req.query.isActive === 'true';
       }
 
       const users = await prisma.user.findMany({

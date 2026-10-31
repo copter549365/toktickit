@@ -39,6 +39,7 @@ test.describe.serial('E2E-03 / E2E-04 / E2E-07: Ticket lifecycle across Requeste
 
   test('IT Staff finds it in the queue via search and filters, then claims it and sets IT Priority and status', async ({ page }) => {
     await loginAs(page, 'staff');
+    await page.goto('/staff/tickets'); // Lab 4 D-05: sign-in now lands on the Dashboard
     await expect(page.getByRole('heading', { name: 'IT Staff Ticket Queue' })).toBeVisible();
 
     await searchQueue(page, token);
@@ -207,6 +208,7 @@ test.describe.serial('E2E-03 / E2E-04 / E2E-07: Ticket lifecycle across Requeste
 test.describe('E2E-08: IT Staff Ticket Queue sort, pagination, and feedback states', () => {
   test('sorting and pagination change the query and the rendered rows', async ({ page }) => {
     await loginAs(page, 'staff');
+    await page.goto('/staff/tickets'); // Lab 4 D-05: sign-in now lands on the Dashboard
     const rows = page.locator('[data-testid^="queue-row-"]');
     await expect(rows.first()).toBeVisible();
 
@@ -228,6 +230,7 @@ test.describe('E2E-08: IT Staff Ticket Queue sort, pagination, and feedback stat
 
   test('empty queue and API failure render distinct, safe states', async ({ page }) => {
     await loginAs(page, 'staff');
+    await page.goto('/staff/tickets'); // Lab 4 D-05: sign-in now lands on the Dashboard
 
     await page.route('**/api/staff/tickets?*', (route) =>
       route.fulfill({
