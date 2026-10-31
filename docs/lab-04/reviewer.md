@@ -24,7 +24,7 @@
 | **Issue 4** — Actions Taken UI ([#59](https://github.com/copter549365/toktickit/issues/59)) | [#68](https://github.com/copter549365/toktickit/pull/68) | `feat/issue-4-actions-taken-ui` | @AlphabetCG | **Approved & Merged** |
 | **Issue 5** — Ticket workflow & resolution gate ([#60](https://github.com/copter549365/toktickit/issues/60)) | [#69](https://github.com/copter549365/toktickit/pull/69) | `feat/issue-5-ticket-workflow` | @AlphabetCG | Changes Requested → **Approved & Merged** |
 | **Issue 6** — Requester Dashboard ([#61](https://github.com/copter549365/toktickit/issues/61)) | [#70](https://github.com/copter549365/toktickit/pull/70) | `feat/issue-6-requester-dashboard` | @AlphabetCG | **Approved & Merged** |
-| **Issue 7** — IT Staff & Administrator Dashboard ([#62](https://github.com/copter549365/toktickit/issues/62)) | *(pending)* | `feat/issue-7-staff-dashboard` | | Pending |
+| **Issue 7** — IT Staff & Administrator Dashboard ([#62](https://github.com/copter549365/toktickit/issues/62)) | [#71](https://github.com/copter549365/toktickit/pull/71) | `feat/issue-7-staff-dashboard` | | Pending |
 
 ### 1.1. Key review comments and my responses
 
