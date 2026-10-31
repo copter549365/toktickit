@@ -26,7 +26,7 @@
 | **Issue 6** — Requester Dashboard ([#61](https://github.com/copter549365/toktickit/issues/61)) | [#70](https://github.com/copter549365/toktickit/pull/70) | `feat/issue-6-requester-dashboard` | @AlphabetCG | **Approved & Merged** |
 | **Issue 7** — IT Staff & Administrator Dashboard ([#62](https://github.com/copter549365/toktickit/issues/62)) | [#71](https://github.com/copter549365/toktickit/pull/71) | `feat/issue-7-staff-dashboard` | @AlphabetCG | **Approved & Merged** |
 | **Issue 8** — Final hardening, regression & accessibility ([#63](https://github.com/copter549365/toktickit/issues/63)) | [#72](https://github.com/copter549365/toktickit/pull/72) | `feat/issue-8-final-hardening` | @AlphabetCG | **Approved & Merged** |
-| **Issue 9** — E2E suite, screenshots & release ([#64](https://github.com/copter549365/toktickit/issues/64)) | *(pending)* | `feat/issue-9-e2e-release` | | Pending |
+| **Issue 9** — E2E suite, screenshots & release ([#64](https://github.com/copter549365/toktickit/issues/64)) | [#73](https://github.com/copter549365/toktickit/pull/73) | `feat/issue-9-e2e-release` | | Pending |
 
 ### 1.1. Key review comments and my responses
 
