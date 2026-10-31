@@ -6,9 +6,7 @@
 
 | Role | Name | Student ID | GitHub |
 |---|---|---|---|
-| First Peer Reviewer | Napat Utabuawong | 67070501041 | [@AlphabetCG](https://github.com/AlphabetCG) |
-| Second Peer Reviewer | Alongkron Kaeprom | 67070501050 | [@Alongkron1234](https://github.com/Alongkron1234) |
-| Additional Reviewer | Paphangkorn Luanseng | 67070501083 | [@IEAR2548](https://github.com/IEAR2548) |
+| Peer Reviewer | Napat Utabuawong | 67070501041 | [@AlphabetCG](https://github.com/AlphabetCG) |
 
 **Branch flow:** Issue branch → `lab4-staging` → `main` (release PR).
 
@@ -26,12 +24,13 @@
 | **Issue 6** — Requester Dashboard ([#61](https://github.com/copter549365/toktickit/issues/61)) | [#70](https://github.com/copter549365/toktickit/pull/70) | `feat/issue-6-requester-dashboard` | @AlphabetCG | **Approved & Merged** |
 | **Issue 7** — IT Staff & Administrator Dashboard ([#62](https://github.com/copter549365/toktickit/issues/62)) | [#71](https://github.com/copter549365/toktickit/pull/71) | `feat/issue-7-staff-dashboard` | @AlphabetCG | **Approved & Merged** |
 | **Issue 8** — Final hardening, regression & accessibility ([#63](https://github.com/copter549365/toktickit/issues/63)) | [#72](https://github.com/copter549365/toktickit/pull/72) | `feat/issue-8-final-hardening` | @AlphabetCG | **Approved & Merged** |
-| **Issue 9** — E2E suite, screenshots & release ([#64](https://github.com/copter549365/toktickit/issues/64)) | [#73](https://github.com/copter549365/toktickit/pull/73) | `feat/issue-9-e2e-release` | | Pending |
+| **Issue 9** — E2E suite, screenshots & release ([#64](https://github.com/copter549365/toktickit/issues/64)) | [#73](https://github.com/copter549365/toktickit/pull/73) | `feat/issue-9-e2e-release` | @AlphabetCG | **Approved & Merged** |
 
 ### 1.1. Key review comments and my responses
 
 | PR | Reviewer comment (summary) | My response / change |
 |---|---|---|
+| #73 | "สามารถ merge ได้เลยครับ" (OK to merge): approved without change requests. | — |
 | #65 | "ครบถ้วนสำหรับ Issue นี้ดีครับ ไม่มีปัญหาครับ" (complete for this Issue, no problems): approved without change requests. | — |
 | #66 | **Required:** the documented rollback does not work. After `rollback.sql`, `prisma migrate resolve --rolled-back` fails with P3012 (the migration is not in a failed state). The Lab 4 row stays in `_prisma_migrations`, so `migrate status` reports "up to date" while `ActionTaken` is gone, and `migrate deploy` never recreates it. MIG-L4-02 missed this because it ran raw SQL instead of going through Prisma. | Fixed. `rollback.sql` now deletes the migration's `_prisma_migrations` row in the same transaction, and the `migrate resolve` step is removed from the script header and spec §7.5. MIG-L4-02 now baselines the scratch database in Prisma, applies Lab 4 with `prisma migrate deploy`, asserts the row is gone after rollback, and re-applies with `migrate deploy`. I confirmed the new assertions failed before the fix. |
 | #66 | *Non-blocking:* D-11 (Cascade) gives up the database-level guard that §7.2 gave as its reason for Restrict. An alternative is for test helpers to delete actions and history before deleting tickets. | Kept Cascade. The trade-off and the alternative are now recorded in D-11: no application path deletes Tickets, and the alternative means editing every Lab 3 suite's cleanup. |
