@@ -88,16 +88,16 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| SEC-L4-01 | Authorization | AC-08, AC-21, BR-26 | Matrix: every new or changed route × {anonymous, must-change, Requester-owner, Requester-other, IT Staff, Admin} | Each cell returns the code in api-spec §4; no data is leaked in error bodies | `server/tests/lab-04/authorization.api.test.ts` | Planned |
+| SEC-L4-01 | Authorization | AC-08, AC-21, BR-26 | Matrix: every new or changed route × {anonymous, must-change, Requester-owner, Requester-other, IT Staff, Admin} | Each cell returns the code in api-spec §4; no data is leaked in error bodies | `server/tests/lab-04/authorization.api.test.ts` | Pass (86 cells across 14 routes × 6 personas) |
 | MIG-L4-01 | Migration | AC-27, §7.3 | Migration from a Lab 3 snapshot | User, Ticket, Attachment, PublicComment, and InternalNote counts are equal. Legacy Tickets have version 1, 0 actions, 1 migrated history row; `itPriority` and `resolvedAt` are backfilled; `requesterResolvedIndicator` is cleared on RESOLVED/CLOSED (BR-15). Applied with `prisma migrate deploy` over a baselined Lab 3 database. | `server/tests/lab-04/migration.test.ts` | Pass |
 | MIG-L4-02 | Migration | §7.5 | Rollback and recovery | `rollback.sql` on a scratch database removes the Lab 4 objects and the migration's `_prisma_migrations` row with Lab 3 data intact; `prisma migrate deploy` then re-applies it cleanly | `server/tests/lab-04/migration.test.ts` | Pass |
 | MIG-L4-03 | Migration | AC-27, §7.6 | Seed is idempotent and has the required coverage | Running it twice gives identical counts. All 8 statuses, all 3 IT priorities, assigned and unassigned, Tickets with 0, 1, and 4 actions, 2 performers on one Ticket, nina and olivia with zero metrics. | `server/tests/lab-04/seed.test.ts` | Pass |
-| REG-L4-01 | Regression | AC-24, FR-18 | Lab 2 and Lab 3 server suites | All pass unchanged | `server/tests/lab-02/*`, `server/tests/lab-03/*` | Planned |
-| REG-L4-02 | Regression | AC-24, FR-18 | Lab 2 and Lab 3 client suites | All pass. Landing-page assertions updated only where D-05 applies, with each change listed in §4. | `client/tests/lab-02/*`, `client/tests/lab-03/*` | Planned |
-| REG-L4-03 | Regression | AC-24, FR-18 | Lab 3 E2E suite | All pass (D-05 landing URL updates only) | `e2e/lab-03/*` | Planned |
+| REG-L4-01 | Regression | AC-24, FR-18 | Lab 2 and Lab 3 server suites | All pass unchanged | `server/tests/lab-02/*`, `server/tests/lab-03/*` | Pass on a fresh database. Locally, MIGR-02 fails only because `john.smith` changed the seeded password in the dev database (data, not code). |
+| REG-L4-02 | Regression | AC-24, FR-18 | Lab 2 and Lab 3 client suites | All pass. Landing-page assertions updated only where D-05 applies, with each change listed in §4. | `client/tests/lab-02/*`, `client/tests/lab-03/*` | Pass (landing-page and wording changes listed in §4) |
+| REG-L4-03 | Regression | AC-24, FR-18 | Lab 3 E2E suite | All pass (D-05 landing URL updates only) | `e2e/lab-03/*` | Pass (landing-page and wording changes listed in §4) |
 | REG-L4-04 | Regression | AC-24, spec D-13 | Deterministic list pagination (found in Issue 4: Lab 3 E2E-08 failed once the shared DB held many Tickets with the same IT Priority) | My Tickets and the Staff Queue, sorted by a column where 60 Tickets tie, return each Ticket exactly once across pages. The test fails without the `id` tiebreaker. | `server/tests/lab-04/list-pagination.api.test.ts` | Pass |
-| PERF-L4-01 | Performance smoke | AC-28 | Dashboards with 1,000 Tickets and 3,000 actions | Median of 5 runs < 500 ms for each dashboard endpoint | `server/tests/lab-04/performance-smoke.test.ts` | Planned |
-| PERF-L4-02 | Performance smoke | AC-28 | Actions list for one Ticket with 50 actions | Median < 300 ms | `server/tests/lab-04/performance-smoke.test.ts` | Planned |
+| PERF-L4-01 | Performance smoke | AC-28 | Dashboards with 1,000 Tickets and 3,000 actions | Median of 5 runs < 500 ms for each dashboard endpoint | `server/tests/lab-04/performance-smoke.test.ts` | Pass (medians about 10 ms locally) |
+| PERF-L4-02 | Performance smoke | AC-28 | Actions list for one Ticket with 50 actions | Median < 300 ms | `server/tests/lab-04/performance-smoke.test.ts` | Pass (median about 9 ms locally) |
 
 ### 2.6. UI Component
 
@@ -119,12 +119,12 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| STYLE-L4-01 | UI Style | ui-spec §1.4, AC-26 | Metric cards | Value and label visible with no overflow (`scrollWidth <= clientWidth`); zero rendered as `0`; Zen Green border and focus ring | `e2e/lab-04/responsive.spec.ts` | Planned |
-| STYLE-L4-02 | UI Style | ui-spec §1.1–1.3, §5, AC-26 | Action badges and field semantics | Action status badges contain text and an icon; Performed by is ivory `rgb(241, 240, 232)`; "Visible to Requester" tag present; Internal Notes keep the amber `rgb(179, 107, 0)` border | `e2e/lab-04/responsive.spec.ts` | Planned |
-| RESP-L4-01 | Responsive | AC-26 | Desktop 1280 | No body horizontal overflow on every Lab 4 screen, drawer, and modal; screenshots saved | `e2e/lab-04/responsive.spec.ts` | Planned |
-| RESP-L4-02 | Responsive | AC-26 | Tablet 768 | Same checks; card grids at 3 and 2 columns | `e2e/lab-04/responsive.spec.ts` | Planned |
-| RESP-L4-03 | Responsive | AC-26 | Mobile 375 | Same checks; Actions Taken as cards; action drawer full-screen; no clipped buttons | `e2e/lab-04/responsive.spec.ts` | Planned |
-| A11Y-L4-01 | Accessibility | AC-26, ui-spec §10 | Keyboard journey | Tab reaches every card and table button with a visible focus ring; drawer and modal trap focus, close with Esc, and return focus; `#actions-taken` focuses the heading | `e2e/lab-04/accessibility.spec.ts` | Planned |
+| STYLE-L4-01 | UI Style | ui-spec §1.4, AC-26 | Metric cards | Value and label visible with no overflow (`scrollWidth <= clientWidth`); zero rendered as `0`; Zen Green border and focus ring | `e2e/lab-04/responsive.spec.ts` | Pass |
+| STYLE-L4-02 | UI Style | ui-spec §1.1–1.3, §5, AC-26 | Action badges and field semantics | Action status badges contain text and an icon; Performed by is ivory `rgb(241, 240, 232)`; "Visible to Requester" tag present; Internal Notes keep the amber `rgb(179, 107, 0)` border | `e2e/lab-04/responsive.spec.ts` | Pass |
+| RESP-L4-01 | Responsive | AC-26 | Desktop 1280 | No body horizontal overflow on every Lab 4 screen, drawer, and modal; screenshots saved | `e2e/lab-04/responsive.spec.ts` | Pass |
+| RESP-L4-02 | Responsive | AC-26 | Tablet 768 | Same checks; card grids at 3 and 2 columns | `e2e/lab-04/responsive.spec.ts` | Pass |
+| RESP-L4-03 | Responsive | AC-26 | Mobile 375 | Same checks; Actions Taken as cards; action drawer full-screen; no clipped buttons | `e2e/lab-04/responsive.spec.ts` | Pass |
+| A11Y-L4-01 | Accessibility | AC-26, ui-spec §10 | Keyboard journey | Tab reaches every card and table button with a visible focus ring; drawer and modal trap focus, close with Esc, and return focus; `#actions-taken` focuses the heading | `e2e/lab-04/accessibility.spec.ts` | Pass |
 
 ### 2.8. End-to-End
 
@@ -139,9 +139,9 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 | E2E-L4-07 | E2E | AC-22, AC-18 | Dashboard drill-down | For the Requester, IT Staff, and Admin dashboards, clicking each card opens a list whose row count equals the card value, with the filter shown | `e2e/lab-04/dashboards.spec.ts` | Pass |
 | E2E-L4-08 | E2E | AC-23, AC-21 | Dashboard safe failure and forbidden | Injected 500 shows the retryable error, and Retry recovers; a Requester opening `/staff/tickets` sees the forbidden state | `e2e/lab-04/dashboards.spec.ts` | Pass |
 | E2E-L4-09 | E2E | AC-19, AC-20 | Zero metrics | nina sees the all-zero dashboard with CTA; olivia sees 0 My Assigned and an empty My Open Actions | `e2e/lab-04/dashboards.spec.ts` | Pass: Requester and IT Staff zero states, signed in as the dedicated `e2e.requester.empty` and `e2e.staff.empty` (D-17, D-18); `nina.wong` and `olivia.chen` are asserted in API-L4-22 and API-L4-25 |
-| E2E-L4-10 | E2E | FR-22 | Console and placeholder check | A shared fixture fails a test on any `console.error` or `pageerror`; no "TODO", "Lorem", or "Development Requester" text on any visited page | `e2e/lab-04/fixtures.ts` (used by all Lab 4 specs) | Planned |
-| E2E-L4-11 | E2E | AC-25, FR-20, FR-21 | Hardening | Double-clicking Add Comment, Add Action, or a status change makes one change; injected 500 on Create Ticket and Add Action keeps form values | `e2e/lab-04/hardening.spec.ts` | Planned |
-| E2E-L4-12 | E2E | AC-24, FR-18 | Representative regression | Login with first-login change; create a Ticket with an attachment; My Tickets search; Public Comment; Internal Note (amber, hidden from the Requester); Admin creates and deactivates a user | `e2e/lab-04/regression.spec.ts` | Planned |
+| E2E-L4-10 | E2E | FR-22 | Console and placeholder check | A shared fixture fails a test on any `console.error` or `pageerror`; no "TODO", "Lorem", or "Development Requester" text on any visited page | `e2e/lab-04/fixtures.ts` (used by all Lab 4 specs) | Pass |
+| E2E-L4-11 | E2E | AC-25, FR-20, FR-21 | Hardening | Double-clicking Add Comment, Add Action, or a status change makes one change; injected 500 on Create Ticket and Add Action keeps form values | `e2e/lab-04/hardening.spec.ts` | Pass |
+| E2E-L4-12 | E2E | AC-24, FR-18 | Representative regression | Login with first-login change; create a Ticket with an attachment; My Tickets search; Public Comment; Internal Note (amber, hidden from the Requester); Admin creates and deactivates a user | `e2e/lab-04/regression.spec.ts` | Pass |
 
 ---
 
@@ -171,7 +171,7 @@ IDs use an `L4` infix so they don't collide with the Lab 3 rows, which keep runn
 | AC-20 Staff metrics | API-L4-25, UI-L4-09, E2E-L4-09 |
 | AC-21 Admin and dashboard roles | API-L4-23, API-L4-26, SEC-L4-01, UI-L4-09, E2E-L4-08 |
 | AC-22 Drill-down | UNIT-L4-05, UNIT-L4-06, API-L4-27, API-L4-29, UI-L4-11, E2E-L4-07 |
-| AC-23 Dashboard feedback | UI-L4-08, E2E-L4-08 |
+| AC-23 Dashboard feedback | UI-L4-08, UI-L4-12, E2E-L4-08 |
 | AC-24 Regression | REG-L4-01, REG-L4-02, REG-L4-03, E2E-L4-12 |
 | AC-25 Duplicate submit and retention | UI-L4-05, E2E-L4-11 |
 | AC-26 Responsive and accessible | STYLE-L4-01, STYLE-L4-02, RESP-L4-01..03, A11Y-L4-01 |
@@ -208,3 +208,5 @@ Intentional Lab 3 assertion changes (spec D-05, D-17):
 - Issue 7, `e2e/lab-03/authentication.spec.ts` (E2E-01): IT Staff and Administrators land on `/dashboard`; IT Staff nav is `Dashboard · Ticket Queue` and Administrator nav `Dashboard · Ticket Queue · User Management` (BR-29). The session-persistence check expects `/dashboard` after reload.
 - Issue 7, `e2e/lab-03/responsive.spec.ts`, `staff-ticket-flow.spec.ts` (E2E-08), and `user-administration.spec.ts` (E2E-05/E2E-09): journeys that relied on the old IT Staff / Administrator landing page now open `/staff/tickets` or `/admin/users` right after sign-in. A new IT Staff account's first sign-in lands on `/dashboard`. No other assertion changed.
 - Issue 7, `client/tests/lab-03/AppShell.test.tsx` (UI-03): an Administrator now sees the Ticket Queue link (BR-29), so the "no Ticket Queue" assertion became "has Ticket Queue".
+- Issue 8 (D-19), `client/tests/lab-03/RequireRole.test.tsx` (UI-16) and `e2e/lab-03/user-administration.spec.ts` (E2E-05 forbidden access): the forbidden wording is now "You don't have access to this page." on every screen.
+- Issue 8 (D-19), `client/tests/lab-03/RequesterTicketDetail.test.tsx` (AC-03): the not-found wording is now "This ticket doesn't exist or you can't view it." on both detail screens.

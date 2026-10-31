@@ -131,9 +131,8 @@ describe('UI-11: Requester Ticket Detail Screen (regression, FR-11)', () => {
 
     renderTicketDetail();
 
-    expect(
-      await screen.findByText(/This ticket could not be found, or you do not have access to it\./i),
-    ).toBeInTheDocument();
+    // Lab 4 D-19 (intentional change, tests.md §4): one not-found wording on both detail screens.
+    expect(await screen.findByText(/This ticket doesn't exist or you can't view it\./i)).toBeInTheDocument();
   });
 
   describe('Public Comments (BR-04, BR-14, BR-15)', () => {

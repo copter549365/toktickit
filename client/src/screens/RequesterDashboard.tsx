@@ -5,7 +5,6 @@ import { Badge } from '../components/Badge';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
 import {
-  DashboardForbidden,
   DashboardHeader,
   DashboardLoading,
   DashboardSection,
@@ -82,7 +81,7 @@ export function RequesterDashboard() {
 
       {state.kind === 'loading' && <DashboardLoading cards={4} gridClassName="zg-metric-grid--requester" />}
       {state.kind === 'failure' && <ErrorState message="Something went wrong. Please try again." onRetry={retry} />}
-      {state.kind === 'forbidden' && <DashboardForbidden />}
+      {state.kind === 'forbidden' && <ErrorState variant="forbidden" />}
 
       {data && (
         <>

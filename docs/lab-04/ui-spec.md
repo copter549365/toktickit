@@ -239,17 +239,17 @@ Screens: Requester Dashboard, Staff Dashboard, Admin Dashboard, Staff Ticket Det
 
 | Category | Item | Criteria | How verified | Result |
 |---|---|---|---|:-:|
-| Design consistency | Zen Green tokens | New cards, badges, and drawers use only Lab 3 tokens and the §1 additions | Screenshot review at 3 viewports | Pending |
-| Dashboards | Card fidelity | Label, value, and "View all" visible; no clipping; zero shown as 0 | STYLE-L4-01, screenshots | Pending |
-| Dashboards | Drill-down | Every card and list row navigates with the filter applied | E2E-L4-07 | Pending |
-| Actions Taken | Editable vs read-only | Performed by and locked actions are ivory; open fields are white | STYLE-L4-02 | Pending |
-| Actions Taken | Shared vs private | "Visible to Requester" tag on Actions; Internal Notes keep the amber confidential frame | STYLE-L4-02, screenshots | Pending |
-| Validation placement | Inline | Errors under their field with `role="alert"`; server `INVALID_ASSIGNEE` under Assignee | UI-L4-03, E2E-L4-02 | Pending |
-| Keyboard focus | Reachability | Cards, table buttons, drawer, and modals reachable and operable by keyboard; visible ring | A11Y-L4-01 | Pending |
-| Clipping and overlap | Layout | No overlapping buttons or truncated badges at 375 px; drawer buttons fully visible | RESP-L4-01..03 | Pending |
-| Horizontal overflow | Body | `scrollWidth <= innerWidth` on every Lab 4 screen and dialog | RESP-L4-01..03 | Pending |
-| Feedback | States | Loading, empty, forbidden, failure, and conflict render as in §8 | UI-L4-08, E2E-L4-08 | Pending |
-| Leftovers | Cleanup | No placeholder text, debug UI, dead links, or console errors | E2E console listener (E2E-L4-10) | Pending |
+| Design consistency | Zen Green tokens | New cards, badges, and drawers use only Lab 3 tokens and the §1 additions | Screenshot review at 3 viewports | Pass |
+| Dashboards | Card fidelity | Label, value, and "View all" visible; no clipping; zero shown as 0 | STYLE-L4-01, screenshots | Pass |
+| Dashboards | Drill-down | Every card and list row navigates with the filter applied | E2E-L4-07 | Pass |
+| Actions Taken | Editable vs read-only | Performed by and locked actions are ivory; open fields are white | STYLE-L4-02 | Pass |
+| Actions Taken | Shared vs private | "Visible to Requester" tag on Actions; Internal Notes keep the amber confidential frame | STYLE-L4-02, screenshots | Pass |
+| Validation placement | Inline | Errors under their field with `role="alert"`; server `INVALID_ASSIGNEE` under Assignee | UI-L4-03, E2E-L4-02 | Pass |
+| Keyboard focus | Reachability | Cards, table buttons, drawer, and modals reachable and operable by keyboard; visible ring | A11Y-L4-01 | Pass |
+| Clipping and overlap | Layout | No overlapping buttons or truncated badges at 375 px; drawer buttons fully visible | RESP-L4-01..03 | Pass |
+| Horizontal overflow | Body | `scrollWidth <= innerWidth` on every Lab 4 screen and dialog | RESP-L4-01..03 | Pass |
+| Feedback | States | Loading, empty, forbidden, failure, and conflict render as in §8 | UI-L4-08, E2E-L4-08 | Pass |
+| Leftovers | Cleanup | No placeholder text, debug UI, dead links, or console errors | E2E console listener (E2E-L4-10) | Pass |
 
 ---
 

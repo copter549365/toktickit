@@ -36,6 +36,10 @@ export function useUrlFilterSync(
   const lastQuery = useRef(searchParams.toString());
   const onExternalChangeRef = useRef(onExternalChange);
   onExternalChangeRef.current = onExternalChange;
+  // Read through a ref: the effect below must run on URL changes only, and location.state
+  // arrives together with the URL change it belongs to.
+  const locationStateRef = useRef(location.state);
+  locationStateRef.current = location.state;
 
   useEffect(() => {
     if (query === lastQuery.current) return;
@@ -46,7 +50,6 @@ export function useUrlFilterSync(
   useEffect(() => {
     if (searchParams.toString() === lastQuery.current) return;
     lastQuery.current = searchParams.toString();
-    // location.state travels with the URL change that runs this effect.
-    onExternalChangeRef.current(searchParams, fromDashboardState(location.state));
+    onExternalChangeRef.current(searchParams, fromDashboardState(locationStateRef.current));
   }, [searchParams]);
 }

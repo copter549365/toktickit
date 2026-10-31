@@ -4,8 +4,6 @@ import { fetchStaffDashboard } from '../api/dashboard';
 import { Badge, FollowUpPill, RequesterSaysResolvedPill } from '../components/Badge';
 import { ErrorState } from '../components/ErrorState';
 import {
-  DRILL_DOWN_STATE,
-  DashboardForbidden,
   DashboardHeader,
   DashboardLoading,
   DashboardSection,
@@ -13,7 +11,7 @@ import {
   MetricGrid,
 } from '../components/DashboardParts';
 import { useDashboard } from '../hooks/useDashboard';
-import type { DashboardActionItem, DashboardList, DashboardTicketItem } from '../types/dashboard';
+import { DRILL_DOWN_STATE, type DashboardActionItem, type DashboardList, type DashboardTicketItem } from '../types/dashboard';
 import type { Priority } from '../types/ticket';
 import { formatBangkokDateTime } from '../utils/bangkokTime';
 
@@ -111,7 +109,7 @@ export function StaffDashboard({ now = () => new Date() }: StaffDashboardProps) 
 
       {state.kind === 'loading' && <DashboardLoading cards={6} gridClassName="zg-metric-grid--status" />}
       {state.kind === 'failure' && <ErrorState message="Something went wrong. Please try again." onRetry={retry} />}
-      {state.kind === 'forbidden' && <DashboardForbidden />}
+      {state.kind === 'forbidden' && <ErrorState variant="forbidden" />}
 
       {data && (
         <>

@@ -51,7 +51,8 @@ describe('UI-16: Role-gated routes show a forbidden state (FR-08, FR-09, AC-14)'
 
   it.each<Role>(['REQUESTER', 'IT_STAFF'])('shows a forbidden state, not the screen, to a %s on /admin/users', async (role) => {
     renderAt('/admin/users', role);
-    expect(await screen.findByText('You do not have permission to view this page.')).toBeInTheDocument();
+    // Lab 4 D-19 (intentional change, tests.md §4): one forbidden wording across the product.
+    expect(await screen.findByText("You don't have access to this page.")).toBeInTheDocument();
     expect(screen.queryByText('User Management Marker')).not.toBeInTheDocument();
   });
 
