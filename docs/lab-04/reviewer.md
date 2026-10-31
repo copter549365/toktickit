@@ -25,7 +25,7 @@
 | **Issue 5** — Ticket workflow & resolution gate ([#60](https://github.com/copter549365/toktickit/issues/60)) | [#69](https://github.com/copter549365/toktickit/pull/69) | `feat/issue-5-ticket-workflow` | @AlphabetCG | Changes Requested → **Approved & Merged** |
 | **Issue 6** — Requester Dashboard ([#61](https://github.com/copter549365/toktickit/issues/61)) | [#70](https://github.com/copter549365/toktickit/pull/70) | `feat/issue-6-requester-dashboard` | @AlphabetCG | **Approved & Merged** |
 | **Issue 7** — IT Staff & Administrator Dashboard ([#62](https://github.com/copter549365/toktickit/issues/62)) | [#71](https://github.com/copter549365/toktickit/pull/71) | `feat/issue-7-staff-dashboard` | @AlphabetCG | **Approved & Merged** |
-| **Issue 8** — Final hardening, regression & accessibility ([#63](https://github.com/copter549365/toktickit/issues/63)) | *(pending)* | `feat/issue-8-final-hardening` | | Pending |
+| **Issue 8** — Final hardening, regression & accessibility ([#63](https://github.com/copter549365/toktickit/issues/63)) | [#72](https://github.com/copter549365/toktickit/pull/72) | `feat/issue-8-final-hardening` | | Pending |
 
 ### 1.1. Key review comments and my responses
 
