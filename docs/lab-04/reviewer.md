@@ -25,11 +25,13 @@
 | **Issue 7** — IT Staff & Administrator Dashboard ([#62](https://github.com/copter549365/toktickit/issues/62)) | [#71](https://github.com/copter549365/toktickit/pull/71) | `feat/issue-7-staff-dashboard` | @AlphabetCG | **Approved & Merged** |
 | **Issue 8** — Final hardening, regression & accessibility ([#63](https://github.com/copter549365/toktickit/issues/63)) | [#72](https://github.com/copter549365/toktickit/pull/72) | `feat/issue-8-final-hardening` | @AlphabetCG | **Approved & Merged** |
 | **Issue 9** — E2E suite, screenshots & release ([#64](https://github.com/copter549365/toktickit/issues/64)) | [#73](https://github.com/copter549365/toktickit/pull/73) | `feat/issue-9-e2e-release` | @AlphabetCG | **Approved & Merged** |
+| Docs follow-up (key prompts, reflection, reviewers) | [#74](https://github.com/copter549365/toktickit/pull/74) | `docs/edit-doc` | @AlphabetCG | **Approved & Merged** |
 
 ### 1.1. Key review comments and my responses
 
 | PR | Reviewer comment (summary) | My response / change |
 |---|---|---|
+| #74 | "ไม่มีปัญหาครับ" (no problems): approved without change requests. | — |
 | #73 | "สามารถ merge ได้เลยครับ" (OK to merge): approved without change requests. | — |
 | #65 | "ครบถ้วนสำหรับ Issue นี้ดีครับ ไม่มีปัญหาครับ" (complete for this Issue, no problems): approved without change requests. | — |
 | #66 | **Required:** the documented rollback does not work. After `rollback.sql`, `prisma migrate resolve --rolled-back` fails with P3012 (the migration is not in a failed state). The Lab 4 row stays in `_prisma_migrations`, so `migrate status` reports "up to date" while `ActionTaken` is gone, and `migrate deploy` never recreates it. MIG-L4-02 missed this because it ran raw SQL instead of going through Prisma. | Fixed. `rollback.sql` now deletes the migration's `_prisma_migrations` row in the same transaction, and the `migrate resolve` step is removed from the script header and spec §7.5. MIG-L4-02 now baselines the scratch database in Prisma, applies Lab 4 with `prisma migrate deploy`, asserts the row is gone after rollback, and re-applies with `migrate deploy`. I confirmed the new assertions failed before the fix. |
