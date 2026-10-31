@@ -10,7 +10,10 @@ export type TicketCurrentStatus =
   | 'CANCELLED';
 export type UserRole = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
 
+export type ActionStatusValue = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
 type BadgeProps =
+  | { kind: 'actionStatus'; value: ActionStatusValue }
   | { kind: 'priority'; value: TicketPriority }
   | { kind: 'status'; value: TicketCurrentStatus }
   | { kind: 'itPriority'; value: TicketPriority | null }
@@ -41,7 +44,7 @@ const PRIORITY_CLASS: Record<TicketPriority, string> = {
 };
 
 // docs/lab-03/ui-spec.md §3.3
-const STATUS_LABEL: Record<TicketCurrentStatus, string> = {
+export const STATUS_LABEL: Record<TicketCurrentStatus, string> = {
   NEW: 'New',
   OPEN: 'Open',
   IN_PROGRESS: 'In Progress',
@@ -63,11 +66,29 @@ const STATUS_CLASS: Record<TicketCurrentStatus, string> = {
   CANCELLED: 'badge-status-cancelled',
 };
 
+// docs/lab-04/ui-spec.md §1.1: label + icon glyph, so color is never the only cue.
+const ACTION_STATUS: Record<ActionStatusValue, { label: string; icon: string; className: string }> = {
+  PLANNED: { label: 'Planned', icon: '○', className: 'badge-action-planned' },
+  IN_PROGRESS: { label: 'In Progress', icon: '◐', className: 'badge-action-in-progress' },
+  COMPLETED: { label: 'Completed', icon: '✓', className: 'badge-action-completed' },
+  CANCELLED: { label: 'Cancelled', icon: '✕', className: 'badge-action-cancelled' },
+};
+
 /**
- * Presentational Requested Priority / Current Status / IT Priority / Role badge.
+ * Presentational Requested Priority / Current Status / IT Priority / Role / Action Status badge.
  * Always pairs color with a text label (ui-spec.md §3) — never color-only.
  */
 export function Badge(props: BadgeProps) {
+  if (props.kind === 'actionStatus') {
+    const s = ACTION_STATUS[props.value];
+    return (
+      <span className={`zg-badge ${s.className}`}>
+        <span aria-hidden="true">{s.icon}</span>
+        <span className="zg-badge__label">{s.label}</span>
+      </span>
+    );
+  }
+
   if (props.kind === 'itPriority') {
     if (!props.value) {
       return <span className="zg-badge badge-triage-pending">Not yet triaged</span>;
@@ -90,6 +111,25 @@ export function Badge(props: BadgeProps) {
   }
 
   return <span className={`zg-badge ${STATUS_CLASS[props.value]}`}>{STATUS_LABEL[props.value]}</span>;
+}
+
+/** Lab 4 ui-spec §6.5: the Requester's advisory "appears resolved" signal, as text with an icon. */
+export function RequesterSaysResolvedPill() {
+  return (
+    <span className="zg-badge badge-requester-says">
+      <span aria-hidden="true">✓</span>
+      <span>Requester says resolved</span>
+    </span>
+  );
+}
+
+/** Lab 4 ui-spec §1.3: amber "Follow-up required" pill, as text with a flag icon. */
+export function FollowUpPill() {
+  return (
+    <span className="zg-followup-pill">
+      <span aria-hidden="true">⚑</span> Follow-up required
+    </span>
+  );
 }
 
 export default Badge;

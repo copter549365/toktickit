@@ -109,7 +109,8 @@ describe('UI-03: App Shell — role display and navigation (FR-08, FR-09)', () =
     expect(screen.getByText('Administrator')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /User Management/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /My Tickets/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Ticket Queue/i })).not.toBeInTheDocument();
+    // Lab 4 BR-29 (intentional change, tests.md §4): Administrators now get the Ticket Queue in nav.
+    expect(screen.getByRole('link', { name: /Ticket Queue/i })).toBeInTheDocument();
   });
 
   it('Sign Out logs the user out and returns to /login', async () => {

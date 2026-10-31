@@ -79,6 +79,7 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
 
     test('staff queue: table on desktop/tablet, cards on mobile', async ({ page }) => {
       await loginAs(page, 'staff');
+      await page.goto('/staff/tickets'); // Lab 4 D-05: sign-in now lands on the Dashboard
       await expect(page.getByRole('heading', { name: 'IT Staff Ticket Queue' })).toBeVisible();
 
       if (viewportName === 'mobile') {
@@ -129,6 +130,7 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
 
     test('user management: list, create dialog, edit dialog', async ({ page }) => {
       await loginAs(page, 'admin');
+      await page.goto('/admin/users'); // Lab 4 D-05: sign-in now lands on the Dashboard
       if (viewportName === 'mobile') {
         // Stacked cards keep Role, Status, and Edit on screen instead of in a sideways scroll.
         const firstCard = page.locator('[data-testid^="user-card-"]').first();
@@ -157,9 +159,9 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
       await page.screenshot({ path: screenshotPath('user-management', `${viewportName}-edit-user`), fullPage: true });
     });
 
-    test('requester regression: My Tickets home and sign-out reachable', async ({ page }) => {
+    test('requester regression: Dashboard home and sign-out reachable', async ({ page }) => {
       await loginAs(page, 'requester');
-      await expect(page).toHaveURL(/\/tickets$/);
+      await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05
       await checkLayout(page);
       await page.screenshot({ path: screenshotPath('authentication', `${viewportName}-requester-home`), fullPage: true });
 

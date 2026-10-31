@@ -1,5 +1,6 @@
 import { API_URL } from './config';
 import type {
+  StatusHistoryEntry,
   Ticket,
   TicketDetail,
   CreateTicketInput,
@@ -68,6 +69,7 @@ export async function fetchMyTickets(
   if (params.categoryId) query.set('categoryId', String(params.categoryId));
   if (params.requestedPriority) query.set('requestedPriority', params.requestedPriority);
   if (params.currentStatus) query.set('currentStatus', params.currentStatus);
+  else if (params.statusGroup) query.set('statusGroup', params.statusGroup);
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
   if (params.page) query.set('page', String(params.page));
@@ -119,32 +121,57 @@ export async function uploadTicketAttachment(ticketId: number, file: File): Prom
   return response.json();
 }
 
-/** PATCH /api/tickets/:id/resolve-indicator (ui-spec.md §5.4, FR-13, BR-06). */
-export async function markProblemAppearsResolved(ticketId: number): Promise<void> {
+/**
+ * PATCH /api/tickets/:id/resolve-indicator (ui-spec.md §5.4, FR-13, BR-06). Lab 4 D-03: sends the
+ * version on screen, so a change made by IT Staff meanwhile gives 409 STALE_UPDATE.
+ */
+export async function markProblemAppearsResolved(ticketId: number, expectedVersion?: number): Promise<{ version?: number }> {
   const response = await fetch(`${API_URL}/api/tickets/${ticketId}/resolve-indicator`, {
     method: 'PATCH',
     credentials: 'include',
     headers: JSON_REQUEST_HEADERS,
-    body: JSON.stringify({ appearsResolved: true }),
+    body: JSON.stringify({ appearsResolved: true, expectedVersion }),
   });
 
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorResponse(response));
   }
+
+  return response.json();
 }
 
-/** PATCH /api/tickets/:id/cancel (ui-spec.md §5.4, FR-13.1). */
-export async function cancelTicket(ticketId: number, cancellationReason: string): Promise<void> {
+/** PATCH /api/tickets/:id/cancel (ui-spec.md §5.4, FR-13.1). Lab 4 D-03: sends the version on screen. */
+export async function cancelTicket(
+  ticketId: number,
+  cancellationReason: string,
+  expectedVersion?: number,
+): Promise<{ version?: number }> {
   const response = await fetch(`${API_URL}/api/tickets/${ticketId}/cancel`, {
     method: 'PATCH',
     credentials: 'include',
     headers: JSON_REQUEST_HEADERS,
-    body: JSON.stringify({ cancellationReason }),
+    body: JSON.stringify({ cancellationReason, expectedVersion }),
   });
 
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorResponse(response));
   }
+
+  return response.json();
+}
+
+/** GET /api/tickets/:id/status-history (docs/lab-04/api-spec.md §2.4). Oldest first. */
+export async function fetchStatusHistory(ticketId: number): Promise<StatusHistoryEntry[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/status-history`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorResponse(response));
+  }
+
+  const body = await response.json();
+  return Array.isArray(body?.data) ? body.data : [];
 }
 
 /** GET /api/tickets/:id/comments (ui-spec.md §5.4, BR-04). */

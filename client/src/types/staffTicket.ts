@@ -1,4 +1,4 @@
-import type { Priority, TicketStatus } from './ticket';
+import type { Priority, ResolutionGate, TicketStatus } from './ticket';
 import type { Attachment } from './attachment';
 
 export interface StaffMember {
@@ -32,6 +32,10 @@ export interface StaffTicketDetailData {
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
+  // Lab 4 api-spec §2.1 (optional so Lab 3 payloads still type-check)
+  version?: number;
+  resolvedAt?: string | null;
+  resolutionGate?: ResolutionGate;
 }
 
 export type StaffQueueSortField =
@@ -67,6 +71,10 @@ export interface StaffQueueListParams {
   currentStatus?: TicketStatus;
   /** A specific staff user id, or 'unassigned'. Omit for "All". */
   ticketOwnerId?: number | 'unassigned';
+  /** Lab 4 FR-16. Ignored by the server when `currentStatus` is also sent. */
+  statusGroup?: 'active';
+  /** Lab 4 FR-16: only Tickets the Requester marked as appearing resolved. */
+  requesterResolvedIndicator?: true;
   sortBy?: StaffQueueSortField;
   sortOrder?: 'asc' | 'desc';
   page?: number;

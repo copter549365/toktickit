@@ -34,6 +34,8 @@ export async function fetchStaffQueue(
   if (params.requestedPriority) query.set('requestedPriority', params.requestedPriority);
   if (params.itPriority) query.set('itPriority', params.itPriority);
   if (params.currentStatus) query.set('currentStatus', params.currentStatus);
+  else if (params.statusGroup) query.set('statusGroup', params.statusGroup);
+  if (params.requesterResolvedIndicator) query.set('requesterResolvedIndicator', 'true');
   if (params.ticketOwnerId !== undefined) query.set('ticketOwnerId', String(params.ticketOwnerId));
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
@@ -86,12 +88,13 @@ export async function fetchStaffMembers(): Promise<StaffMember[]> {
 export async function updateTicketOwner(
   ticketId: number,
   ticketOwnerId: number | null,
-): Promise<{ id: number; ticketOwnerId: number | null; owner: StaffMember | null }> {
+  expectedVersion?: number,
+): Promise<{ id: number; ticketOwnerId: number | null; owner: StaffMember | null; version?: number }> {
   const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/owner`, {
     method: 'PATCH',
     credentials: 'include',
     headers: JSON_REQUEST_HEADERS,
-    body: JSON.stringify({ ticketOwnerId }),
+    body: JSON.stringify({ ticketOwnerId, expectedVersion }),
   });
 
   if (!response.ok) {
@@ -102,12 +105,12 @@ export async function updateTicketOwner(
 }
 
 /** PATCH /api/staff/tickets/:id/priority. */
-export async function updateItPriority(ticketId: number, itPriority: Priority): Promise<void> {
+export async function updateItPriority(ticketId: number, itPriority: Priority, expectedVersion?: number): Promise<void> {
   const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, {
     method: 'PATCH',
     credentials: 'include',
     headers: JSON_REQUEST_HEADERS,
-    body: JSON.stringify({ itPriority }),
+    body: JSON.stringify({ itPriority, expectedVersion }),
   });
 
   if (!response.ok) {
@@ -115,12 +118,18 @@ export async function updateItPriority(ticketId: number, itPriority: Priority): 
   }
 }
 
-/** PATCH /api/staff/tickets/:id/status (BR-13). */
+/** PATCH /api/staff/tickets/:id/status (Lab 4 BR-13..BR-18). `expectedVersion` is sent when known (BR-18). */
 export async function updateTicketStatus(
   ticketId: number,
   status: TicketStatus,
-  extra: { resolutionSummary?: string; reopenReason?: string } = {},
-): Promise<{ id: number; currentStatus: TicketStatus; resolutionSummary: string | null; reopenReason: string | null }> {
+  extra: { resolutionSummary?: string; reopenReason?: string; note?: string; expectedVersion?: number } = {},
+): Promise<{
+  id: number;
+  currentStatus: TicketStatus;
+  resolutionSummary: string | null;
+  reopenReason: string | null;
+  version?: number;
+}> {
   const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, {
     method: 'PATCH',
     credentials: 'include',

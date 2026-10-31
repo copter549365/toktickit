@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import app from '../../src/app.js';
 import { prisma } from '../../src/db.js';
 import { signSessionToken } from '../../src/utils/auth.js';
@@ -303,7 +304,23 @@ describe('API-20/API-21: PATCH /api/staff/tickets/:id/status (BR-13)', () => {
   });
 
   it('requires a resolutionSummary (min 5 chars) when transitioning to RESOLVED', async () => {
-    const ticket = await createTicket('IN_PROGRESS');
+    // Lab 4 BR-14 (spec D-15): RESOLVED also needs an owner and a completed Action Taken.
+    const ticket = await createTicket('IN_PROGRESS', { ticketOwnerId: staff.id });
+    await prisma.actionTaken.create({
+      data: {
+        ticketId: ticket.id,
+        clientRequestId: randomUUID(),
+        actionAt: new Date(),
+        description: 'Replaced the faulty network cable.',
+        status: 'COMPLETED',
+        result: 'Link light is back and the connection is stable.',
+        assigneeId: staff.id,
+        createdById: staff.id,
+        lastUpdatedById: staff.id,
+        performedById: staff.id,
+        completedAt: new Date(),
+      },
+    });
 
     const missing = await request(app)
       .patch(`/api/staff/tickets/${ticket.id}/status`)

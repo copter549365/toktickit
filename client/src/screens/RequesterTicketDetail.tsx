@@ -15,6 +15,8 @@ import { Button } from '../components/Button';
 import { FormField } from '../components/FormField';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { ActionsTakenSection } from '../components/ActionsTakenSection';
+import { StatusHistory } from '../components/StatusHistory';
 import { formatDate } from '../utils/formatDate';
 import type { Attachment } from '../types/attachment';
 import type { PublicComment } from '../types/comment';
@@ -36,6 +38,7 @@ export function RequesterTicketDetail() {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [workflowRefresh, setWorkflowRefresh] = useState(0);
 
   // Public Comments
   const [comments, setComments] = useState<PublicComment[]>([]);
@@ -149,14 +152,39 @@ export function RequesterTicketDetail() {
     }
   };
 
+  /**
+   * Lab 4 409s (D-03, D-16): explain, then reload the ticket so the screen shows what IT Staff
+   * changed. Returns true when the error was one of them.
+   */
+  const handleConflict = async (err: unknown, setError: (message: string) => void): Promise<boolean> => {
+    if (!(err instanceof ApiError) || err.status !== 409) return false;
+    if (err.data.error === 'STALE_UPDATE') {
+      setError('IT Staff updated this ticket while you were viewing it. The latest version is now shown; please check it and try again.');
+    } else if (err.data.error === 'TICKET_HAS_OPEN_ACTIONS') {
+      setError(err.data.message ?? 'IT Staff has already started work on this ticket, so it can no longer be cancelled here.');
+    } else {
+      return false;
+    }
+    try {
+      setTicket(await fetchTicketById(ticketId));
+      setWorkflowRefresh((n) => n + 1);
+    } catch {
+      // The message above still stands; the normal Retry path covers a failed reload.
+    }
+    return true;
+  };
+
   const handleMarkResolved = async () => {
     if (isMarkingResolved) return;
     setIsMarkingResolved(true);
     setResolveError(null);
     try {
-      await markProblemAppearsResolved(ticketId);
-      setTicket((prev) => (prev ? { ...prev, requesterResolvedIndicator: true } : prev));
-    } catch {
+      const result = await markProblemAppearsResolved(ticketId, ticket?.version);
+      setTicket((prev) =>
+        prev ? { ...prev, requesterResolvedIndicator: true, version: result?.version ?? prev.version } : prev,
+      );
+    } catch (err) {
+      if (await handleConflict(err, setResolveError)) return;
       setResolveError('Unable to indicate resolution right now. Please try again.');
     } finally {
       setIsMarkingResolved(false);
@@ -169,11 +197,18 @@ export function RequesterTicketDetail() {
     setIsCancelling(true);
     setCancelError(null);
     try {
-      await cancelTicket(ticketId, trimmedReason);
-      setTicket((prev) => (prev ? { ...prev, currentStatus: 'CANCELLED' } : prev));
+      const result = await cancelTicket(ticketId, trimmedReason, ticket?.version);
+      setTicket((prev) =>
+        prev
+          ? { ...prev, currentStatus: 'CANCELLED', permittedNextStatuses: [], version: result?.version ?? prev.version }
+          : prev,
+      );
+      // Lab 4 BR-17: the history gains a row.
+      setWorkflowRefresh((n) => n + 1);
       setShowCancelConfirm(false);
       setCancelReason('');
-    } catch {
+    } catch (err) {
+      if (await handleConflict(err, setCancelError)) return;
       setCancelError('Unable to cancel this ticket right now. Please try again.');
     } finally {
       setIsCancelling(false);
@@ -183,17 +218,11 @@ export function RequesterTicketDetail() {
   if (!isValidId || notFound) {
     return (
       <div className="py-5 text-center">
-        <div className="zg-state-panel">
-          <div className="zg-state-panel__icon" aria-hidden="true">
-            🚫
-          </div>
-          <div className="zg-state-panel__message">
-            This ticket could not be found, or you do not have access to it.
-          </div>
+        <ErrorState variant="notFound">
           <Button variant="primary" onClick={() => navigate('/tickets')}>
             Back to My Tickets
           </Button>
-        </div>
+        </ErrorState>
       </div>
     );
   }
@@ -219,7 +248,11 @@ export function RequesterTicketDetail() {
 
   const canMarkResolved =
     !ticket.requesterResolvedIndicator && RESOLVE_INDICATOR_ELIGIBLE_STATUSES.includes(ticket.currentStatus);
-  const canCancel = ticket.currentStatus === 'NEW';
+  // Lab 4 FR-11: follow the server's permitted list (no cancel while staff work is open, D-16);
+  // Lab 3 payloads without it fall back to the status rule.
+  const canCancel = ticket.permittedNextStatuses
+    ? ticket.permittedNextStatuses.includes('CANCELLED')
+    : ticket.currentStatus === 'NEW';
 
   return (
     <div className="container-fluid p-0">
@@ -459,6 +492,18 @@ export function RequesterTicketDetail() {
         onAttachmentAdded={handleAttachmentAdded}
         onAttachmentRemoved={handleAttachmentRemoved}
       />
+
+      {/* Actions Taken — Lab 4, read-only for the Requester (docs/lab-04/ui-spec.md §5.1, BR-10) */}
+      <div className="mt-4">
+        <ActionsTakenSection
+          key={`${ticket.id}-${workflowRefresh}`}
+          ticketId={ticket.id}
+          ticketCreatedAt={ticket.createdAt}
+          mode="requester"
+          writable={false}
+        />
+        <StatusHistory ticketId={ticket.id} refreshKey={workflowRefresh} />
+      </div>
 
       {/* Public Comments Thread (ui-spec.md §5.4, BR-04, BR-14, BR-15) */}
       <div className="card border-0 shadow-sm mt-4" data-testid="comment-thread">

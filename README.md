@@ -1,126 +1,144 @@
-# TokTick It
-A tiny full-stack IT service desk vertical slice built for CPE 334 (Intro to Software Engineering in the Age of AI Agents), Lab 1.
+# TokTickIT
 
-Stack: React + TypeScript + Vite + Bootstrap (client) → Node.js + Express + TypeScript (server) → Prisma ORM v7 → PostgreSQL.
+A small full-stack IT service desk built for CPE 334 (Intro to Software Engineering in the Age of AI
+Agents). Requesters raise Tickets; IT Staff triage, work, and resolve them; Administrators manage
+accounts. Lab 4 adds **Actions Taken**, the final ticket workflow with a resolution gate and
+optimistic concurrency, and role-based **dashboards** that drill down into the detailed screens.
+
+Stack: React 19 + TypeScript + Vite + Bootstrap 5 (client) → Node.js + Express 5 + TypeScript
+(server) → Prisma ORM 7 → PostgreSQL 15.
 
 ## Prerequisites
 
 - Node.js 20.19.0+
-- Docker (for local PostgreSQL via Docker Compose)
+- Docker (PostgreSQL runs in Docker Compose)
 
-## Setup Instructions
+## Setup
 
-### 1. Environment Variables
-
-All Prisma CLI commands are run from the **project root**, so `.env` must live at the root:
+All Prisma commands run from the **project root**, which is where `.env` must live.
 
 ```bash
-# From the project root
-cp .env.example .env
-# Edit .env and set DATABASE_URL if needed
-```
+# 1. Environment
+cp .env.example .env              # set DATABASE_URL if you changed the Docker credentials
 
-> **Note:** Do NOT place `.env` inside `server/`. `prisma.config.ts` loads dotenv from the working
-> directory it is invoked from (the project root). Placing `.env` elsewhere will cause
-> `schema.prisma: file not found` errors.
+# 2. Database
+docker compose up -d db
 
-### 2. Database (Docker)
+# 3. Dependencies
+npm install                       # root: Prisma, Playwright, seed tooling
+(cd server && npm install)
+(cd client && npm install)
 
-```bash
-# From the project root
-docker compose up -d
-```
-
-### 3. Prisma — Generate & Migrate
-
-```bash
-# From the project root
+# 4. Schema and data
 npx prisma generate
+npm run db:backup                 # optional on a fresh database; required before migrating real data
 npx prisma migrate deploy
-npx prisma db seed       # idempotent: categories, systems, 10 users, 8 tickets, comments & notes
+npx prisma db seed                # idempotent: running it twice creates no duplicates
 ```
 
-Seeded accounts all start with the initial password `InitialPassword123!` and must change it at
-first login. For example: `john.smith@toktickit.com` (Administrator), `michael.brown@toktickit.com`
-(IT Staff), and `jennifer.anderson@toktickit.com` (Requester).
+> Do not put `.env` inside `server/`. `prisma.config.ts` loads dotenv from the directory it is
+> invoked from, so a misplaced `.env` gives `schema.prisma: file not found`.
 
-### 4. Frontend (Client)
+### Run
 
 ```bash
-cd client
-npm install
-npm run dev       # start Vite dev server
-npm run test      # run Vitest
+(cd server && npm run dev)        # http://localhost:3000  (nodemon + tsx)
+(cd client && npm run dev)        # http://localhost:5173  (Vite)
 ```
 
-### 5. Backend (Server)
+## Accounts and demo
+
+Every seeded account starts with the password `InitialPassword123!` and must change it at first
+sign-in. After sign-in, every role lands on its **Dashboard**.
+
+| Role | Account | What it shows |
+|---|---|---|
+| Administrator | `john.smith@toktickit.com` | Staff dashboard plus User Accounts cards; User Management |
+| IT Staff | `michael.brown@toktickit.com` | Owns Tickets with completed Actions Taken |
+| IT Staff | `alex.thompson@toktickit.com` | Has a planned action in My Open Actions |
+| IT Staff | `olivia.chen@toktickit.com` | No owned Tickets or actions (all-zero "my" metrics) |
+| Requester | `jennifer.anderson@toktickit.com` | Resolved Tickets waiting for her confirmation, one in progress |
+| Requester | `emily.davis@toktickit.com` | A Ticket waiting for her reply, a reopened one, and a new one |
+| Requester | `nina.wong@toktickit.com` | No Tickets (all-zero dashboard and the "Create your first ticket" call to action) |
+
+A five-minute demo:
+1. **Requester dashboard** (Emily): click "Waiting for Me". My Tickets opens filtered, with the
+   filter in the URL and a "Filtered from Dashboard" chip. Open the Ticket and read its Actions
+   Taken and Status History. They are read-only for Requesters. Jennifer's "Needs My Attention"
+   list shows Resolved Tickets with "Please confirm the fix".
+2. **Staff dashboard** (Alex, then Michael): check the status, workload, and IT Priority cards;
+   open a My Open Actions row (it jumps to `#actions-taken`); use "View all" on Urgent Tickets.
+3. **Actions Taken**: on a Ticket you own, add an action, start it, complete it with a result, and
+   mark a follow-up. Open a second browser on the same action and save both to see the conflict
+   banner (409 `STALE_UPDATE`).
+4. **Workflow**: try to resolve with an open action. The Resolve checklist blocks it, and the API
+   answers 409 `RESOLUTION_GATE_NOT_MET`. Complete the action, then resolve, close, or reopen.
+5. **Administrator** (John): the User Accounts cards open User Management filtered by role and
+   account status.
+
+## Tests
+
+| Suite | Command | Covers |
+|---|---|---|
+| Server unit + API | `cd server && npx vitest run` | Lab 1–4 rules, routes, authorization matrix, migration/rollback, seed, performance smoke |
+| Client components | `cd client && npx vitest run` | Lab 2–4 screens with React Testing Library |
+| End-to-end | `npm run test:e2e` (from the root) | Lab 3 and Lab 4 journeys, responsive and accessibility checks, screenshots |
+
+Run the server and E2E suites against the Docker database after `migrate deploy` and `db seed`.
+The server suite runs its files one at a time, because they share one database.
 
 ```bash
-cd server
-npm install
-npm run dev       # start Express server (nodemon + tsx)
-npm run test      # run Vitest + Supertest
+npx playwright install chromium   # once
+npm run test:e2e                  # starts the client and server dev servers if they are not running
 ```
 
-## Project Structure
+- `e2e/lab-03/global-setup.ts` resets the dedicated `e2e.*@toktickit.com` accounts before every
+  run, so runs repeat cleanly and never change the seeded accounts' passwords.
+- Every Lab 4 spec fails on any `console.error`, page error, or placeholder text
+  (`e2e/lab-04/fixtures.ts`).
+- Screenshots go to `artifacts/lab-04/screenshots/{requester-dashboard,staff-dashboard,actions-taken,workflow}/`
+  and `artifacts/lab-03/screenshots/`.
+- Results and traceability: `docs/lab-04/tests.md`.
+
+## Migration, backup, and rollback
+
+The Lab 4 migration (`prisma/migrations/20261030000000_lab4_actions_taken_and_workflow/`) keeps all
+existing data. Legacy Tickets get `version = 1`, zero Actions Taken, and one "migrated" history
+entry. `itPriority` and `resolvedAt` are backfilled (spec §7).
+
+```bash
+npm run db:backup                 # pg_dump to backups/toktickit-<timestamp>.dump
+
+# Restore a backup (replaces the database contents):
+docker compose exec -T db pg_restore -U toktickit_user -d toktickit_db --clean --if-exists < backups/<file>.dump
+
+# Roll back the Lab 4 schema only (Lab 1–3 data is kept; Actions Taken and history are dropped):
+docker compose exec -T db psql -U toktickit_user -d toktickit_db < prisma/migrations/20261030000000_lab4_actions_taken_and_workflow/rollback.sql
+npx prisma migrate deploy         # re-applies Lab 4 later
+```
+
+## Project structure
 
 ```
 toktickit/
-├── .env                  ← environment variables (git-ignored)
-├── .env.example          ← template — copy to .env
-├── prisma.config.ts      ← Prisma v7 config (loaded from root)
-├── prisma/
-│   └── schema.prisma
-├── generated/
-│   └── prisma/           ← generated Prisma Client (git-ignored)
-├── client/               ← React + Vite + Bootstrap frontend
-├── server/               ← Express + TypeScript backend
-├── e2e/lab-03/           ← Lab 3 Playwright E2E + responsive/style suite (Issue 8)
-├── artifacts/lab-0{2,3}/ ← screenshot evidence captured by each lab's E2E suite
-└── docs/lab-0{1,2,3}/    ← per-lab engineering contract (spec, tests, UI/API specs, reviewer, AI use)
-```
-## Tests
-```
-cd server && npm test
-cd client && npm test
+├── .env.example          ← copy to .env (git-ignored)
+├── prisma.config.ts      ← Prisma 7 config (loaded from the root)
+├── prisma/               ← schema, migrations (with the Lab 4 rollback.sql), idempotent seed
+├── scripts/db-backup.mjs ← pg_dump inside the db container
+├── server/               ← Express API (src/app.ts, src/utils/*) and its Vitest suites (tests/lab-0N)
+├── client/               ← React app (src/screens, src/components, src/hooks) and its tests
+├── e2e/lab-03, e2e/lab-04 ← Playwright journeys, responsive, accessibility, and hardening specs
+├── artifacts/lab-0N/     ← screenshot evidence from each lab's E2E suite
+└── docs/lab-0N/          ← per-lab engineering contract: specification, API/UI specs, tests, reviews, AI use
 ```
 
-### End-to-end & responsive visual tests (Lab 3, Issue 8)
-
-`e2e/lab-03` runs the Lab 3 journeys against the real Express API and PostgreSQL: authentication and
-the mandatory password change, the IT Staff ticket lifecycle (queue → claim → IT Priority → status →
-Public Comments vs Internal Notes → resolution), and Administrator user management with its safety
-rules. It also checks every major screen at 1280/768/375px for overflow, clipped labels, field
-styling, and focus. `global-setup.ts` resets the dedicated `e2e.*@toktickit.com` accounts first,
-so runs are repeatable and never touch the seed accounts above.
-
-```bash
-# From the project root, one-time setup
-npm install
-npx playwright install chromium
-
-docker compose up -d db
-npx prisma migrate deploy && npx prisma db seed
-npm run test:e2e          # starts the client/server dev servers if they aren't running
-```
-
-Screenshots go to `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/`
-(listed in `docs/lab-03/ui-spec.md` §9). Results and traceability are in `docs/lab-03/tests.md`.
+The Lab 4 contract is in `docs/lab-04/`: `specification.md` (requirements, business rules,
+acceptance criteria, and decisions D-01..D-19), `api-spec.md`, `ui-spec.md`, `tests.md`,
+`reviewer.md`, and `ai-use.md`.
 
 ### Lab 2 E2E suite (retired)
 
-The Lab 2 Playwright suite (`e2e/lab-02`) logged in through the Development Requester selector, which
-Lab 3 replaced with real authentication, so it was removed at the Lab 3 release. Its Requester flows
-are covered under real auth by `server/tests/lab-03/requester-regression.test.ts` and the Lab 3 E2E
-suite; `docs/lab-03/tests.md` §4.2 maps each retired row to its Lab 3 coverage. To run it as it was,
-check out `lab2-staging`. Its screenshots remain in `artifacts/lab-02/screenshots/`.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19 + TypeScript + Vite + Bootstrap 5 |
-| Backend | Node.js + Express 5 + TypeScript |
-| ORM | Prisma ORM v7 + `@prisma/adapter-pg` |
-| Database | PostgreSQL (local via Docker Compose) |
-| Testing | Vitest + Supertest |
+The Lab 2 Playwright suite logged in through the Development Requester selector, which Lab 3
+replaced with real authentication, so it was removed at the Lab 3 release. Its flows are covered
+under real auth by `server/tests/lab-03/requester-regression.test.ts` and the E2E suites. Its
+screenshots remain in `artifacts/lab-02/screenshots/`.

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchCategories } from '../api/categories';
 import { fetchStaffQueue, ApiError } from '../api/staffTickets';
 import { Button } from '../components/Button';
-import { Badge } from '../components/Badge';
+import { Badge, RequesterSaysResolvedPill } from '../components/Badge';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
@@ -13,6 +13,8 @@ import type { Category } from '../types/category';
 import type { Priority, TicketStatus } from '../types/ticket';
 import type { OwnerFilter, StaffQueueSortField, StaffTicketListItem, StaffQueueListMeta } from '../types/staffTicket';
 import { formatDate } from '../utils/formatDate';
+import { DrillDownChip } from '../components/DrillDownChip';
+import { useInitialUrlFilters, useUrlFilterSync } from '../hooks/useUrlFilterSync';
 
 const DEFAULT_SORT_BY: StaffQueueSortField = 'createdAt';
 const DEFAULT_SORT_ORDER: 'asc' | 'desc' = 'desc';
@@ -28,6 +30,77 @@ const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
   { value: 'REOPENED', label: 'Reopened' },
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
+
+const SORT_FIELDS: StaffQueueSortField[] = ['createdAt', 'ticketNumber', 'requestedPriority', 'itPriority', 'currentStatus', 'updatedAt'];
+const PRIORITIES: Priority[] = ['LOW', 'MEDIUM', 'HIGH'];
+/** Status-filter option value for `statusGroup=active` (ui-spec §7). */
+const ACTIVE_GROUP_OPTION = 'group:active';
+
+interface QueueFilters {
+  search: string;
+  categoryId: string;
+  requestedPriority: Priority | '';
+  itPriority: Priority | '';
+  currentStatus: TicketStatus | '';
+  statusGroup: 'active' | '';
+  /** '' for all owners, 'unassigned', or a staff user id ("Assigned to Me" is the caller's id). */
+  ownerId: string;
+  requesterResolvedIndicator: boolean;
+  sortBy: StaffQueueSortField;
+  sortOrder: 'asc' | 'desc';
+  page: number;
+  pageSize: 10 | 20 | 50;
+}
+
+/** FR-16: the URL form of the filters. Invalid values are dropped, as the server does. */
+function readQueueFilters(params: URLSearchParams): QueueFilters {
+  const status = params.get('currentStatus');
+  const currentStatus = STATUS_OPTIONS.some((s) => s.value === status) ? (status as TicketStatus) : '';
+  const pick = (key: string) => {
+    const value = params.get(key);
+    return PRIORITIES.includes(value as Priority) ? (value as Priority) : '';
+  };
+  const categoryId = params.get('categoryId') ?? '';
+  const owner = params.get('ticketOwnerId') ?? '';
+  const sortBy = params.get('sortBy');
+  const sortOrder = params.get('sortOrder');
+  const page = Number(params.get('page'));
+  const pageSize = Number(params.get('pageSize'));
+  return {
+    search: (params.get('search') ?? '').trim(),
+    categoryId: /^[1-9]\d*$/.test(categoryId) ? categoryId : '',
+    requestedPriority: pick('requestedPriority'),
+    itPriority: pick('itPriority'),
+    currentStatus,
+    statusGroup: !currentStatus && params.get('statusGroup') === 'active' ? 'active' : '',
+    ownerId: owner === 'unassigned' || /^[1-9]\d*$/.test(owner) ? owner : '',
+    requesterResolvedIndicator: params.get('requesterResolvedIndicator') === 'true',
+    sortBy: SORT_FIELDS.includes(sortBy as StaffQueueSortField) ? (sortBy as StaffQueueSortField) : DEFAULT_SORT_BY,
+    sortOrder: sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : DEFAULT_SORT_ORDER,
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+    pageSize: (PAGE_SIZE_OPTIONS as readonly number[]).includes(pageSize) ? (pageSize as 10 | 20 | 50) : 10,
+  };
+}
+
+/** Writes only non-default values, in the same order as the dashboard drill-down queries. */
+function queueFiltersToQuery(f: QueueFilters): string {
+  const params = new URLSearchParams();
+  if (f.search) params.set('search', f.search);
+  if (f.categoryId) params.set('categoryId', f.categoryId);
+  if (f.requestedPriority) params.set('requestedPriority', f.requestedPriority);
+  if (f.itPriority) params.set('itPriority', f.itPriority);
+  if (f.ownerId) params.set('ticketOwnerId', f.ownerId);
+  if (f.currentStatus) params.set('currentStatus', f.currentStatus);
+  else if (f.statusGroup) params.set('statusGroup', f.statusGroup);
+  if (f.requesterResolvedIndicator) params.set('requesterResolvedIndicator', 'true');
+  if (f.sortBy !== DEFAULT_SORT_BY || f.sortOrder !== DEFAULT_SORT_ORDER) {
+    params.set('sortBy', f.sortBy);
+    params.set('sortOrder', f.sortOrder);
+  }
+  if (f.page > 1) params.set('page', String(f.page));
+  if (f.pageSize !== 10) params.set('pageSize', String(f.pageSize));
+  return params.toString();
+}
 
 const SORT_COLUMNS: { field: StaffQueueSortField; label: string }[] = [
   { field: 'ticketNumber', label: 'Ticket No.' },
@@ -57,18 +130,22 @@ export function StaffTicketQueue() {
 
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState<string>('');
-  const [requestedPriority, setRequestedPriority] = useState<Priority | ''>('');
-  const [itPriority, setItPriority] = useState<Priority | ''>('');
-  const [currentStatus, setCurrentStatus] = useState<TicketStatus | ''>('');
-  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
-  const [sortBy, setSortBy] = useState<StaffQueueSortField>(DEFAULT_SORT_BY);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(DEFAULT_SORT_ORDER);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
+  const { filters: initial, fromDashboard } = useInitialUrlFilters(readQueueFilters);
+  const [searchInput, setSearchInput] = useState(initial.search);
+  const [search, setSearch] = useState(initial.search);
+  const [categoryId, setCategoryId] = useState<string>(initial.categoryId);
+  const [requestedPriority, setRequestedPriority] = useState<Priority | ''>(initial.requestedPriority);
+  const [itPriority, setItPriority] = useState<Priority | ''>(initial.itPriority);
+  const [currentStatus, setCurrentStatus] = useState<TicketStatus | ''>(initial.currentStatus);
+  const [statusGroup, setStatusGroup] = useState<'active' | ''>(initial.statusGroup);
+  const [ownerId, setOwnerId] = useState(initial.ownerId);
+  const [requesterResolvedIndicator, setRequesterResolvedIndicator] = useState(initial.requesterResolvedIndicator);
+  const [sortBy, setSortBy] = useState<StaffQueueSortField>(initial.sortBy);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initial.sortOrder);
+  const [page, setPage] = useState(initial.page);
+  const [pageSize, setPageSize] = useState<10 | 20 | 50>(initial.pageSize);
   const [retryCount, setRetryCount] = useState(0);
+  const [showDashboardChip, setShowDashboardChip] = useState(fromDashboard);
 
   const [tickets, setTickets] = useState<StaffTicketListItem[]>([]);
   const [meta, setMeta] = useState<StaffQueueListMeta | null>(null);
@@ -76,7 +153,45 @@ export function StaffTicketQueue() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const hasActiveFilters = Boolean(
-    search || categoryId || requestedPriority || itPriority || currentStatus || ownerFilter !== 'all',
+    search || categoryId || requestedPriority || itPriority || currentStatus || statusGroup || ownerId || requesterResolvedIndicator,
+  );
+
+  // The Owner control shows the caller's own id as "Assigned to Me" (the My Assigned drill-down).
+  const ownerFilter: OwnerFilter | 'other' =
+    ownerId === '' ? 'all' : ownerId === 'unassigned' ? 'unassigned' : ownerId === String(user?.id) ? 'me' : 'other';
+
+  useUrlFilterSync(
+    queueFiltersToQuery({
+      search,
+      categoryId,
+      requestedPriority,
+      itPriority,
+      currentStatus,
+      statusGroup,
+      ownerId,
+      requesterResolvedIndicator,
+      sortBy,
+      sortOrder,
+      page,
+      pageSize,
+    }),
+    (params, openedFromDashboard) => {
+      const f = readQueueFilters(params);
+      setSearchInput(f.search);
+      setSearch(f.search);
+      setCategoryId(f.categoryId);
+      setRequestedPriority(f.requestedPriority);
+      setItPriority(f.itPriority);
+      setCurrentStatus(f.currentStatus);
+      setStatusGroup(f.statusGroup);
+      setOwnerId(f.ownerId);
+      setRequesterResolvedIndicator(f.requesterResolvedIndicator);
+      setSortBy(f.sortBy);
+      setSortOrder(f.sortOrder);
+      setPage(f.page);
+      setPageSize(f.pageSize);
+      setShowDashboardChip(openedFromDashboard);
+    },
   );
 
   // Only when the text actually changed; otherwise the mount-time timer resets a page the user
@@ -107,7 +222,7 @@ export function StaffTicketQueue() {
     const controller = new AbortController();
 
     const ticketOwnerId: number | 'unassigned' | undefined =
-      ownerFilter === 'unassigned' ? 'unassigned' : ownerFilter === 'me' ? user.id : undefined;
+      ownerId === 'unassigned' ? 'unassigned' : ownerId ? Number(ownerId) : undefined;
 
     fetchStaffQueue(
       {
@@ -116,6 +231,8 @@ export function StaffTicketQueue() {
         requestedPriority: requestedPriority || undefined,
         itPriority: itPriority || undefined,
         currentStatus: currentStatus || undefined,
+        statusGroup: statusGroup || undefined,
+        requesterResolvedIndicator: requesterResolvedIndicator || undefined,
         ticketOwnerId,
         sortBy,
         sortOrder,
@@ -146,7 +263,7 @@ export function StaffTicketQueue() {
       ignore = true;
       controller.abort();
     };
-  }, [user, search, categoryId, requestedPriority, itPriority, currentStatus, ownerFilter, sortBy, sortOrder, page, pageSize, retryCount]);
+  }, [user, search, categoryId, requestedPriority, itPriority, currentStatus, statusGroup, requesterResolvedIndicator, ownerId, sortBy, sortOrder, page, pageSize, retryCount]);
 
   const handleSort = (field: StaffQueueSortField) => {
     if (sortBy === field) {
@@ -165,10 +282,13 @@ export function StaffTicketQueue() {
     setRequestedPriority('');
     setItPriority('');
     setCurrentStatus('');
-    setOwnerFilter('all');
+    setStatusGroup('');
+    setOwnerId('');
+    setRequesterResolvedIndicator(false);
     setSortBy(DEFAULT_SORT_BY);
     setSortOrder(DEFAULT_SORT_ORDER);
     setPage(1);
+    setShowDashboardChip(false);
   };
 
   const handlePageSizeChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -202,6 +322,10 @@ export function StaffTicketQueue() {
           Clear Filters
         </Button>
       </div>
+
+      {showDashboardChip && (
+        <DrillDownChip onClear={handleClearFilters} onDismiss={() => setShowDashboardChip(false)} />
+      )}
 
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-3">
@@ -247,13 +371,20 @@ export function StaffTicketQueue() {
               <select
                 id="queue-status-filter"
                 className="form-select field-editable"
-                value={currentStatus}
+                value={currentStatus || (statusGroup ? ACTIVE_GROUP_OPTION : '')}
                 onChange={(e) => {
-                  setCurrentStatus(e.target.value as TicketStatus | '');
+                  if (e.target.value === ACTIVE_GROUP_OPTION) {
+                    setCurrentStatus('');
+                    setStatusGroup('active');
+                  } else {
+                    setCurrentStatus(e.target.value as TicketStatus | '');
+                    setStatusGroup('');
+                  }
                   setPage(1);
                 }}
               >
                 <option value="">All Statuses</option>
+                <option value={ACTIVE_GROUP_OPTION}>Status group: Active</option>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
@@ -308,14 +439,37 @@ export function StaffTicketQueue() {
                 className="form-select field-editable"
                 value={ownerFilter}
                 onChange={(e) => {
-                  setOwnerFilter(e.target.value as OwnerFilter);
+                  const choice = e.target.value as OwnerFilter;
+                  setOwnerId(choice === 'all' ? '' : choice === 'me' ? String(user?.id ?? '') : 'unassigned');
                   setPage(1);
                 }}
               >
                 <option value="all">All</option>
                 <option value="unassigned">Unassigned</option>
                 <option value="me">Assigned to Me</option>
+                {ownerFilter === 'other' && (
+                  <option value="other" disabled>
+                    Another staff member
+                  </option>
+                )}
               </select>
+            </div>
+            <div className="col-12 col-md-auto">
+              <div className="form-check mt-md-2">
+                <input
+                  id="queue-requester-resolved-filter"
+                  type="checkbox"
+                  className="form-check-input"
+                  checked={requesterResolvedIndicator}
+                  onChange={(e) => {
+                    setRequesterResolvedIndicator(e.target.checked);
+                    setPage(1);
+                  }}
+                />
+                <label htmlFor="queue-requester-resolved-filter" className="form-check-label">
+                  Requester says resolved
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -393,7 +547,10 @@ export function StaffTicketQueue() {
                         <Badge kind="itPriority" value={t.itPriority} />
                       </td>
                       <td>
-                        <Badge kind="status" value={t.currentStatus} />
+                        <div className="d-flex flex-column align-items-start gap-1">
+                          <Badge kind="status" value={t.currentStatus} />
+                          {t.requesterResolvedIndicator && <RequesterSaysResolvedPill />}
+                        </div>
                       </td>
                       <td className="text-truncate" style={{ maxWidth: 240 }} title={t.summary}>
                         {t.summary}
@@ -442,6 +599,7 @@ export function StaffTicketQueue() {
                     <Badge kind="priority" value={t.requestedPriority} />
                     <Badge kind="itPriority" value={t.itPriority} />
                     <span className="badge bg-light text-dark border">{t.category.name}</span>
+                    {t.requesterResolvedIndicator && <RequesterSaysResolvedPill />}
                   </div>
                   <div className="small text-muted">
                     Owner: {t.owner?.name ?? 'Unassigned'} · Created {formatDate(t.createdAt)}

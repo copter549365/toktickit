@@ -9,7 +9,8 @@ import { defineConfig, devices } from '@playwright/test';
  * docs/lab-03/tests.md §4.2 maps its flows to these specs and server/tests/lab-03/requester-regression.
  */
 export default defineConfig({
-  testDir: './e2e/lab-03',
+  // Lab 4 adds e2e/lab-04; the Lab 3 specs keep running as the regression suite (AC-24).
+  testDir: './e2e',
   globalSetup: './e2e/lab-03/global-setup.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

@@ -13,6 +13,8 @@ export interface AdminUser {
 export interface AdminUserListParams {
   search?: string;
   role?: UserRole;
+  /** Lab 4 D-18: filter by account status. Omit for all accounts. */
+  isActive?: boolean;
 }
 
 export interface CreateUserInput {
