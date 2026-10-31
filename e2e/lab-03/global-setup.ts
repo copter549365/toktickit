@@ -33,6 +33,18 @@ export default async function globalSetup(): Promise<void> {
       );
     }
 
+    // Lab 4 E2E-L4-07: the staff dashboard lists the 5 oldest open actions, so open actions left by
+    // an earlier (or interrupted) run would hide this run's action. Close them the way a staff
+    // cancel would: status, reason, and the version bump.
+    await client.query(
+      `UPDATE "ActionTaken"
+       SET status = 'CANCELLED', "cancelReason" = 'Closed before an E2E run', version = version + 1,
+           "lastUpdatedById" = "assigneeId", "updatedAt" = NOW()
+       WHERE status IN ('PLANNED', 'IN_PROGRESS')
+         AND "assigneeId" = (SELECT id FROM "User" WHERE email = $1)`,
+      [E2E_USERS.staffActions.email],
+    );
+
     // Accounts created through the Admin UI in earlier runs. Users cannot be deleted through the
     // product (BR-21), but these throwaway rows own no tickets, comments, or notes, so removing
     // them directly keeps the User Management list from growing without bound.

@@ -1,15 +1,15 @@
 import type { Page } from '@playwright/test';
 import { test, expect, lab4Screenshot } from './fixtures';
-import { apiAsPage, runToken } from '../lab-03/helpers';
+import { apiAsPage, loginAs, runToken, signOut } from '../lab-03/helpers';
 import { actionRow, actionsSection, createActionViaApi, openStaffTicket, prepareTicket } from './helpers';
 
 /**
- * E2E-L4-04 and E2E-L4-06 (docs/lab-04/tests.md §2.8): the ticket workflow through the real UI.
+ * E2E-L4-04, E2E-L4-05, and E2E-L4-06 (docs/lab-04/tests.md §2.8): the ticket workflow through the real UI.
  * - L4-04: Resolve blocked by an open action; complete it; resolve; close; history shows each step,
  *   and only the permitted next statuses are offered at every step.
  * - L4-06: RESOLVED → REOPENED (reason) → WAITING_FOR_REQUESTER; cancelling a Ticket auto-cancels
  *   its open action in the list.
- * E2E-L4-05 needs the Staff Dashboard and is added with it (Issue 7).
+ * - L4-05: the Requester's advisory signal leaves the status alone and shows on the staff dashboard.
  */
 
 const statusSelect = (page: Page) => page.locator('#status-select');
@@ -152,5 +152,55 @@ test.describe.serial('E2E-L4-06: reopen and cancel paths (AC-11, AC-16)', () => 
     await expect(row.getByRole('button', { name: /^Edit action/ })).toHaveCount(0);
     await row.getByRole('button', { name: /^View action/ }).click();
     await expect(page.getByRole('dialog', { name: /^Action #\d+$/ }).getByText('Ticket cancelled')).toBeVisible();
+  });
+});
+
+test.describe.serial('E2E-L4-05: advisory Requester signal (AC-13, BR-16, FR-12)', () => {
+  const token = runToken('E2E-L4-05');
+  let ticketId: number;
+  let before: number;
+
+  const markedCard = (page: Page) =>
+    page.getByRole('list', { name: 'Workload' }).getByRole('link', { name: /^Marked Resolved by Requester: \d+\./ });
+
+  async function markedCount(page: Page): Promise<number> {
+    const name = await markedCard(page).getAttribute('aria-label');
+    return Number(name!.match(/: (\d+)\./)![1]);
+  }
+
+  test('setup: an In Progress Ticket, and the staff dashboard count before the signal', async ({ page }) => {
+    ticketId = await prepareTicket(page, token);
+    const res = await apiAsPage(page, 'PATCH', `/api/staff/tickets/${ticketId}/status`, { status: 'IN_PROGRESS' });
+    expect(res.ok()).toBe(true);
+    await page.goto('/dashboard');
+    before = await markedCount(page);
+    await signOut(page);
+  });
+
+  test('the Requester marks the problem as appearing resolved; the status does not change', async ({ page }) => {
+    await loginAs(page, 'requester');
+    await page.goto(`/tickets/${ticketId}`);
+    await page.getByRole('button', { name: 'Problem Appears Resolved' }).click();
+    await expect(page.getByTestId('resolved-indicator-confirmation')).toBeVisible();
+    // The advisory signal leaves the status badge as it was (BR-16).
+    await expect(page.locator('.zg-badge', { hasText: /^In Progress$/ }).first()).toBeVisible();
+    const detail = await (await apiAsPage(page, 'GET', `/api/tickets/${ticketId}`)).json();
+    expect(detail.currentStatus).toBe('IN_PROGRESS');
+    expect(detail.requesterResolvedIndicator).toBe(true);
+    await signOut(page);
+  });
+
+  test('the staff dashboard "Marked Resolved by Requester" goes up by 1 and drills to the Ticket', async ({ page }) => {
+    await loginAs(page, 'staff');
+    expect(await markedCount(page)).toBe(before + 1);
+    await markedCard(page).click();
+    await expect(page).toHaveURL(/\/staff\/tickets\?statusGroup=active&requesterResolvedIndicator=true$/);
+    await expect(page.getByRole('checkbox', { name: 'Requester says resolved' })).toBeChecked();
+    // The drill-down list may span pages, so find the Ticket by its token.
+    await page.locator('#queue-search-input').fill(token);
+    const row = page.getByTestId(`queue-row-${ticketId}`);
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('Requester says resolved');
+    await page.screenshot({ path: lab4Screenshot('workflow', 'requester-signal-drilldown'), fullPage: true });
   });
 });

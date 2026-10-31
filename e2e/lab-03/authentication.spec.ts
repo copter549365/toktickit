@@ -11,10 +11,10 @@ import { API_URL, fillLogin, loginAs, screenshotPath, signOut } from './helpers'
 test.describe('E2E-01: Login, role home, and logout', () => {
   test('each role lands on its own home with name, role badge, and only its own navigation', async ({ page }) => {
     const cases = [
-      // Lab 4 D-05: the Requester now lands on the Dashboard and gets a Dashboard nav item.
+      // Lab 4 D-05, BR-29: every role lands on the Dashboard; Administrators also get the Queue.
       { key: 'requester', home: '/dashboard', badge: 'Requester', nav: ['Dashboard', 'My Tickets', 'Create Ticket'] },
-      { key: 'staff', home: '/staff/tickets', badge: 'IT Staff', nav: ['Ticket Queue'] },
-      { key: 'admin', home: '/admin/users', badge: 'Administrator', nav: ['User Management'] },
+      { key: 'staff', home: '/dashboard', badge: 'IT Staff', nav: ['Dashboard', 'Ticket Queue'] },
+      { key: 'admin', home: '/dashboard', badge: 'Administrator', nav: ['Dashboard', 'Ticket Queue', 'User Management'] },
     ] as const;
     const allNav = ['Dashboard', 'My Tickets', 'Create Ticket', 'Ticket Queue', 'User Management'];
 
@@ -58,7 +58,7 @@ test.describe('E2E-01: Login, role home, and logout', () => {
     await loginAs(page, 'staff');
     await page.reload();
     await expect(page.getByTestId('auth-user-name')).toHaveText(E2E_USERS.staff.name);
-    await expect(page).toHaveURL(/\/staff\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // Lab 4 D-05: sign-in now lands on the Dashboard
   });
 });
 

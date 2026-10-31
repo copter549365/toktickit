@@ -119,6 +119,10 @@ export interface NormalizedStaffQueueQuery {
   currentStatus?: TicketStatusFilter;
   /** A specific staff user id, or 'unassigned' to find tickets with no owner. */
   ticketOwnerId?: number | 'unassigned';
+  /** Lab 4 (FR-16): only set when no valid `currentStatus` is given. */
+  statusGroup?: StatusGroup;
+  /** Lab 4 (FR-16): only `true` is a filter; any other value is ignored. */
+  requesterResolvedIndicator?: true;
   sortBy: StaffQueueSortField;
   sortOrder: SortOrder;
   page: number;
@@ -170,6 +174,12 @@ export function normalizeStaffQueueQuery(query: Record<string, unknown>): Normal
 
   if ((TICKET_STATUSES as readonly string[]).includes(query.currentStatus as string)) {
     normalized.currentStatus = query.currentStatus as TicketStatusFilter;
+  } else if ((STATUS_GROUPS as readonly string[]).includes(query.statusGroup as string)) {
+    normalized.statusGroup = query.statusGroup as StatusGroup;
+  }
+
+  if (query.requesterResolvedIndicator === 'true') {
+    normalized.requesterResolvedIndicator = true;
   }
 
   if (query.ticketOwnerId === 'unassigned') {

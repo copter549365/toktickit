@@ -806,3 +806,55 @@ body {
     margin-right: 0;
   }
 }
+
+/* Staff dashboard card rows (ui-spec §9): status 6 / 3 / 2, workload and users 4 / 2 / 2,
+   IT Priority 3 / 2 / 2 (desktop / tablet / mobile). */
+.zg-dashboard-group-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+}
+
+@media (min-width: 768px) {
+  .zg-metric-grid--status {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .zg-metric-grid--status {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 992px) {
+  .zg-metric-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .zg-metric-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 359.98px) {
+  .zg-metric-grid--four,
+  .zg-metric-grid--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.zg-metric-card .zg-metric-card__label .zg-badge {
+  font-size: 13px;
+}
+
+/* Lab 4: with three nav items (Administrator, BR-29) the tablet header was 38px wider than 768px.
+   Let the identity block wrap onto a second row instead of overflowing. */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  #zg-shell-nav {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+}

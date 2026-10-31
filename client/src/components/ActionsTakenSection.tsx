@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Badge } from './Badge';
+import { Badge, FollowUpPill } from './Badge';
 import { Button } from './Button';
 import { ErrorState } from './ErrorState';
 import { LoadingState } from './LoadingState';
@@ -42,14 +42,6 @@ function ClampedText({ text }: { text: string }) {
         {expanded ? 'Show less' : 'Show more'}
       </button>
     </div>
-  );
-}
-
-function FollowUpPill() {
-  return (
-    <span className="zg-followup-pill">
-      <span aria-hidden="true">⚑</span> Follow-up required
-    </span>
   );
 }
 

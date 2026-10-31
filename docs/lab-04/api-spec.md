@@ -81,10 +81,13 @@ Business rules (BR-xx) and acceptance criteria (AC-xx) refer to [specification.m
   "currentStatus": "IN_PROGRESS",
   "itPriority": "HIGH",
   "owner": { "id": 5, "name": "Michael Brown" },
+  "createdAt": "2026-10-31T02:15:00.000Z",
   "updatedAt": "2026-11-03T04:00:00.000Z",
-  "resolvedAt": null
+  "resolvedAt": null,
+  "requesterResolvedIndicator": false
 }
 ```
+`createdAt` (the Urgent list shows each Ticket's age) and `requesterResolvedIndicator` (the FR-12 pill on the staff lists) were added in spec D-18.
 
 `DrillDown`:
 ```json
@@ -275,7 +278,7 @@ The Lab 3 response is unchanged, with these fields added:
 - **`GET /api/staff/tickets`** adds:
   - `statusGroup=active` (same rule).
   - `requesterResolvedIndicator=true`.
-- **`GET /api/admin/users`:** unchanged. `role` already exists, and the client now reads it from the URL.
+- **`GET /api/admin/users`** adds `isActive=true|false` (spec D-18), so the user-account cards drill to a list that matches their count. Any other value is ignored. `role` already exists. The client reads both from the URL.
 - Unknown or invalid values still degrade to defaults (Lab 2 BR-27..BR-29).
 
 ---
@@ -353,10 +356,10 @@ All dashboard endpoints:
 - **Administrator only:** `userAccounts` is populated (BR-24):
   ```json
   "userAccounts": [
-    { "key": "activeRequesters", "label": "Active Requesters", "value": 5, "drillDown": { "path": "/admin/users", "query": { "role": "REQUESTER" } } },
-    { "key": "activeItStaff", "label": "Active IT Staff", "value": 4, "drillDown": { "path": "/admin/users", "query": { "role": "IT_STAFF" } } },
-    { "key": "activeAdministrators", "label": "Active Administrators", "value": 1, "drillDown": { "path": "/admin/users", "query": { "role": "ADMINISTRATOR" } } },
-    { "key": "inactiveUsers", "label": "Inactive Accounts", "value": 2, "drillDown": { "path": "/admin/users", "query": {} } }
+    { "key": "activeRequesters", "label": "Active Requesters", "value": 5, "drillDown": { "path": "/admin/users", "query": { "role": "REQUESTER", "isActive": "true" } } },
+    { "key": "activeItStaff", "label": "Active IT Staff", "value": 4, "drillDown": { "path": "/admin/users", "query": { "role": "IT_STAFF", "isActive": "true" } } },
+    { "key": "activeAdministrators", "label": "Active Administrators", "value": 1, "drillDown": { "path": "/admin/users", "query": { "role": "ADMINISTRATOR", "isActive": "true" } } },
+    { "key": "inactiveUsers", "label": "Inactive Accounts", "value": 2, "drillDown": { "path": "/admin/users", "query": { "isActive": "false" } } }
   ]
   ```
   For `IT_STAFF` it is `null`.

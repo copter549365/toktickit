@@ -71,6 +71,10 @@ export interface StaffQueueListParams {
   currentStatus?: TicketStatus;
   /** A specific staff user id, or 'unassigned'. Omit for "All". */
   ticketOwnerId?: number | 'unassigned';
+  /** Lab 4 FR-16. Ignored by the server when `currentStatus` is also sent. */
+  statusGroup?: 'active';
+  /** Lab 4 FR-16: only Tickets the Requester marked as appearing resolved. */
+  requesterResolvedIndicator?: true;
   sortBy?: StaffQueueSortField;
   sortOrder?: 'asc' | 'desc';
   page?: number;

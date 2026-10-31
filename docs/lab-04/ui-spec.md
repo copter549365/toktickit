@@ -95,7 +95,7 @@ An amber pill reading "Follow-up required" (`--color-warning-pale` background, `
 - **Cards:** BR-23 and BR-24. The IT Priority breakdown uses the Lab 3 priority badges inside each card, so the label is never color-only.
 - **My Open Actions list:** ticket number, action description (one line), action status badge, action date, and the follow-up pill if set. A row links to `/staff/tickets/:ticketId#actions-taken`, which scrolls to the section and focuses its heading.
 - **Urgent list:** ticket number, summary, status badge, owner (or an "Unassigned" pill), and age ("opened 3 days ago").
-- **User Accounts:** shown only when the API returns `userAccounts` (Administrator). Each card links to User Management with the `role` filter applied.
+- **User Accounts:** shown only when the API returns `userAccounts` (Administrator). Each card links to User Management with the `role` and `isActive` filters applied (spec D-18).
 - **Refresh:** re-fetches the data, disables itself while loading, and updates the "Updated hh:mm" time. Dashboards do not auto-poll.
 
 ---
@@ -182,6 +182,8 @@ The Lab 3 "Problem Appears Resolved" button and badge are unchanged. On the staf
 - New filter UI:
   - My Tickets: a "Status group: Active" option in the status filter.
   - Queue: a "Requester says resolved" checkbox and a "Status group: Active" option.
+  - User Management: an "Account Status" filter (All Accounts / Active / Inactive), spec D-18.
+  - Each list shows its total ("N tickets", "N users", or the Queue's "Showing x of N") so a drill-down can be compared with its card.
 - Opening a drill-down link shows a dismissible "Filtered from Dashboard" chip with a [Clear filters] link.
 
 ---

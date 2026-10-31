@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState, type ChangeEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchCategories } from '../api/categories';
 import { fetchMyTickets, ApiError } from '../api/tickets';
@@ -19,7 +19,8 @@ import type {
   TicketSortField,
   TicketStatus,
 } from '../types/ticket';
-import type { DrillDownState } from '../types/dashboard';
+import { DrillDownChip } from '../components/DrillDownChip';
+import { useInitialUrlFilters, useUrlFilterSync } from '../hooks/useUrlFilterSync';
 import { formatDate } from '../utils/formatDate';
 
 const PAGE_SIZE = 10;
@@ -120,12 +121,10 @@ function getPaginationItems(currentPage: number, totalPages: number): (number | 
 export function MyTickets() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [initial] = useState(() => readFilters(searchParams));
+  const { filters: initial, fromDashboard } = useInitialUrlFilters(readFilters);
   const [searchInput, setSearchInput] = useState(initial.search);
   const [search, setSearch] = useState(initial.search);
   const [categoryId, setCategoryId] = useState<string>(initial.categoryId);
@@ -136,9 +135,7 @@ export function MyTickets() {
   const [sortOrder, setSortOrder] = useState<SortOrder>(initial.sortOrder);
   const [page, setPage] = useState(initial.page);
   const [retryCount, setRetryCount] = useState(0);
-  const [showDashboardChip, setShowDashboardChip] = useState(
-    Boolean((location.state as DrillDownState | null)?.fromDashboard),
-  );
+  const [showDashboardChip, setShowDashboardChip] = useState(fromDashboard);
 
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta | null>(null);
@@ -147,33 +144,22 @@ export function MyTickets() {
 
   const hasActiveFilters = Boolean(search || categoryId || requestedPriority || currentStatus || statusGroup);
 
-  // The query string we last wrote. A URL that differs from it came from outside (the nav link,
-  // another drill-down, Back), so it is read into the filters instead of being overwritten.
-  const lastQuery = useRef(searchParams.toString());
-
-  useEffect(() => {
-    const next = filtersToQuery({ search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page });
-    if (next === lastQuery.current) return;
-    lastQuery.current = next;
-    setSearchParams(new URLSearchParams(next), { replace: true });
-  }, [search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page, setSearchParams]);
-
-  useEffect(() => {
-    if (searchParams.toString() === lastQuery.current) return;
-    const f = readFilters(searchParams);
-    lastQuery.current = filtersToQuery(f);
-    setSearchInput(f.search);
-    setSearch(f.search);
-    setCategoryId(f.categoryId);
-    setRequestedPriority(f.requestedPriority);
-    setCurrentStatus(f.currentStatus);
-    setStatusGroup(f.statusGroup);
-    setSortBy(f.sortBy);
-    setSortOrder(f.sortOrder);
-    setPage(f.page);
-    setShowDashboardChip(Boolean((location.state as DrillDownState | null)?.fromDashboard));
-    // Only an outside URL change re-reads the filters; location.state travels with it.
-  }, [searchParams]);
+  useUrlFilterSync(
+    filtersToQuery({ search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page }),
+    (params, openedFromDashboard) => {
+      const f = readFilters(params);
+      setSearchInput(f.search);
+      setSearch(f.search);
+      setCategoryId(f.categoryId);
+      setRequestedPriority(f.requestedPriority);
+      setCurrentStatus(f.currentStatus);
+      setStatusGroup(f.statusGroup);
+      setSortBy(f.sortBy);
+      setSortOrder(f.sortOrder);
+      setPage(f.page);
+      setShowDashboardChip(openedFromDashboard);
+    },
+  );
 
   // Debounce the free-text search box so typing doesn't fire a request per keystroke.
   // Only when the text actually changed: an unconditional timer also fired on mount and reset
@@ -316,18 +302,7 @@ export function MyTickets() {
       </div>
 
       {showDashboardChip && (
-        <div className="zg-drilldown-chip mb-3" role="status" aria-label="Filtered from Dashboard">
-          <span>Filtered from Dashboard</span>
-          <button type="button" className="btn btn-link p-0 zg-drilldown-chip__clear" onClick={handleClearFilters}>
-            Clear filters
-          </button>
-          <button
-            type="button"
-            className="btn-close zg-drilldown-chip__dismiss"
-            aria-label="Dismiss"
-            onClick={() => setShowDashboardChip(false)}
-          />
-        </div>
+        <DrillDownChip onClear={handleClearFilters} onDismiss={() => setShowDashboardChip(false)} />
       )}
 
       <div className="card border-0 shadow-sm mb-4">

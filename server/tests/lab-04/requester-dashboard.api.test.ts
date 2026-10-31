@@ -27,7 +27,8 @@ type Fixture = { id: number; email: string; cookie: string };
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const ITEM_KEYS = ['currentStatus', 'id', 'itPriority', 'owner', 'resolvedAt', 'summary', 'ticketNumber', 'updatedAt'];
+// createdAt was added in D-18 (the staff Urgent list shows each Ticket's age).
+const ITEM_KEYS = ['createdAt', 'currentStatus', 'id', 'itPriority', 'owner', 'requesterResolvedIndicator', 'resolvedAt', 'summary', 'ticketNumber', 'updatedAt'];
 
 let requester: Fixture;
 let other: Fixture;
@@ -102,10 +103,10 @@ async function referenceCounts(requesterId: number) {
       COUNT(*) FILTER (WHERE "currentStatus" = 'CLOSED') AS closed
     FROM "Ticket" WHERE "requesterId" = ${requesterId}`;
   return {
-    openTickets: Number(row.open_tickets),
-    waitingForMe: Number(row.waiting_for_me),
-    resolved: Number(row.resolved),
-    closed: Number(row.closed),
+    openTickets: Number(row!.open_tickets),
+    waitingForMe: Number(row!.waiting_for_me),
+    resolved: Number(row!.resolved),
+    closed: Number(row!.closed),
   };
 }
 
@@ -224,7 +225,7 @@ describe('API-L4-22: Requester metrics, lists, and empty state (AC-19, BR-22, BR
 
   it('attentionRequired holds WAITING_FOR_REQUESTER and RESOLVED Tickets, updatedAt DESC then id DESC', async () => {
     const res = await getDashboard(requester.cookie);
-    const [tieFirst, tieSecond] = [t.waitingTieA, t.waitingTieB].sort((a, b) => b - a);
+    const [tieFirst, tieSecond] = [t.waitingTieA!, t.waitingTieB!].sort((a, b) => b - a);
     expect(res.body.lists.attentionRequired.items.map((i: any) => i.id)).toEqual([
       tieFirst,
       tieSecond,
@@ -235,7 +236,7 @@ describe('API-L4-22: Requester metrics, lists, and empty state (AC-19, BR-22, BR
 
   it('recentlyUpdated holds the 5 most recently updated owned Tickets of any status', async () => {
     const res = await getDashboard(requester.cookie);
-    const [tieFirst, tieSecond] = [t.waitingTieA, t.waitingTieB].sort((a, b) => b - a);
+    const [tieFirst, tieSecond] = [t.waitingTieA!, t.waitingTieB!].sort((a, b) => b - a);
     expect(res.body.lists.recentlyUpdated.items.map((i: any) => i.id)).toEqual([
       t.newT,
       tieFirst,

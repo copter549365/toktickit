@@ -1,10 +1,10 @@
 /**
  * client/tests/lab-04/AppShell.test.tsx
  *
- * Tests: UI-L4-10, Requester part (docs/lab-04/tests.md §2.6; FR-17, ui-spec §2).
+ * Tests: UI-L4-10 (docs/lab-04/tests.md §2.6; FR-17, ui-spec §2).
  * The Requester nav is `Dashboard · My Tickets · Create Ticket`, the active item carries
- * aria-current="page", and `/` opens `/dashboard`. The IT Staff and Administrator nav changes
- * come with their dashboard (Issue 7).
+ * aria-current="page", and `/` opens `/dashboard`. IT Staff get `Dashboard · Ticket Queue` and
+ * Administrators `Dashboard · Ticket Queue · User Management` (Issue 7, BR-29).
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -94,14 +94,24 @@ describe('UI-L4-10: AppShell Dashboard navigation (FR-17)', () => {
     expect(await screen.findByTestId('dashboard-loading')).toBeInTheDocument();
   });
 
-  it('until their dashboard ships, IT Staff and Administrators keep their Lab 3 landing page', async () => {
-    renderShell('IT_STAFF', '/');
-    expect(await screen.findByText('Queue Marker')).toBeInTheDocument();
-    vi.unstubAllGlobals();
+  it('the IT Staff nav order is Dashboard · Ticket Queue', async () => {
+    renderShell('IT_STAFF', '/staff/tickets');
+    await screen.findByText('Queue Marker');
+    expect(navLinks().map((l) => l.textContent)).toEqual(['Dashboard', 'Ticket Queue']);
+    expect(screen.getByRole('link', { name: 'Ticket Queue' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('an Administrator opening /dashboard lands on User Management', async () => {
-    renderShell('ADMINISTRATOR', '/dashboard');
-    expect(await screen.findByText('Users Marker')).toBeInTheDocument();
+  it('the Administrator nav order is Dashboard · Ticket Queue · User Management (BR-29)', async () => {
+    renderShell('ADMINISTRATOR', '/admin/users');
+    await screen.findByText('Users Marker');
+    expect(navLinks().map((l) => l.textContent)).toEqual(['Dashboard', 'Ticket Queue', 'User Management']);
+    expect(screen.getByRole('link', { name: 'User Management' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it.each(['IT_STAFF', 'ADMINISTRATOR'] as const)('`/` opens /dashboard for %s, which renders the staff dashboard', async (role) => {
+    renderShell(role, '/');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/dashboard'));
+    expect(await screen.findByRole('heading', { level: 1, name: /^Welcome back, / })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
   });
 });

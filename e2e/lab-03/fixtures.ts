@@ -71,6 +71,24 @@ export const E2E_USERS = {
     isActive: true,
     mustChangePassword: false,
   },
+  // Lab 4 (E2E-L4-09): IT Staff who never own a ticket or get an action, the E2E twin of the
+  // seeded olivia.chen.
+  staffEmpty: {
+    name: 'E2E Staff Empty',
+    email: 'e2e.staff.empty@toktickit.com',
+    role: 'IT_STAFF',
+    isActive: true,
+    mustChangePassword: false,
+  },
+  // Lab 4 (E2E-L4-07): assignee for the My Open Actions journey. The dashboard lists the 5 oldest
+  // open actions, so global-setup.ts cancels this account's leftovers before every run.
+  staffActions: {
+    name: 'E2E Staff Actions',
+    email: 'e2e.staff.actions@toktickit.com',
+    role: 'IT_STAFF',
+    isActive: true,
+    mustChangePassword: false,
+  },
   // Lab 4 (E2E-L4-02): an inactive IT Staff member that Actions Taken must refuse as assignee (BR-06).
   staffInactive: {
     name: 'E2E Inactive Staff',

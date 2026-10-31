@@ -10,6 +10,8 @@ import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
 import { NoResultsState } from '../components/NoResultsState';
 import { generateCompliantPassword } from '../utils/passwordGenerator';
+import { DrillDownChip } from '../components/DrillDownChip';
+import { useInitialUrlFilters, useUrlFilterSync } from '../hooks/useUrlFilterSync';
 import type { AdminUser, UserRole } from '../types/adminUser';
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
@@ -25,6 +27,33 @@ interface CreateFormState {
   initialPassword: string;
 }
 
+type AccountStatusFilter = '' | 'true' | 'false';
+
+interface UserFilters {
+  search: string;
+  role: UserRole | '';
+  isActive: AccountStatusFilter;
+}
+
+/** FR-16 / D-18: the URL form of the filters; invalid values are dropped. */
+function readUserFilters(params: URLSearchParams): UserFilters {
+  const role = params.get('role');
+  const isActive = params.get('isActive');
+  return {
+    search: (params.get('search') ?? '').trim(),
+    role: ROLE_OPTIONS.some((r) => r.value === role) ? (role as UserRole) : '',
+    isActive: isActive === 'true' || isActive === 'false' ? isActive : '',
+  };
+}
+
+function userFiltersToQuery(f: UserFilters): string {
+  const params = new URLSearchParams();
+  if (f.search) params.set('search', f.search);
+  if (f.role) params.set('role', f.role);
+  if (f.isActive) params.set('isActive', f.isActive);
+  return params.toString();
+}
+
 function emptyCreateForm(): CreateFormState {
   return { name: '', email: '', role: 'REQUESTER', initialPassword: generateCompliantPassword() };
 }
@@ -32,10 +61,22 @@ function emptyCreateForm(): CreateFormState {
 export function UserManagement() {
   const { user: currentUser } = useAuth();
 
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<UserRole | ''>('');
+  const { filters: initial, fromDashboard } = useInitialUrlFilters(readUserFilters);
+  const [searchInput, setSearchInput] = useState(initial.search);
+  const [search, setSearch] = useState(initial.search);
+  const [roleFilter, setRoleFilter] = useState<UserRole | ''>(initial.role);
+  const [statusFilter, setStatusFilter] = useState<AccountStatusFilter>(initial.isActive);
+  const [showDashboardChip, setShowDashboardChip] = useState(fromDashboard);
   const [retryCount, setRetryCount] = useState(0);
+
+  useUrlFilterSync(userFiltersToQuery({ search, role: roleFilter, isActive: statusFilter }), (params, openedFromDashboard) => {
+    const f = readUserFilters(params);
+    setSearchInput(f.search);
+    setSearch(f.search);
+    setRoleFilter(f.role);
+    setStatusFilter(f.isActive);
+    setShowDashboardChip(openedFromDashboard);
+  });
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +109,7 @@ export function UserManagement() {
   // controls (Issue 8 visual inspection). The server re-checks BR-20 regardless.
   const [activeAdminCount, setActiveAdminCount] = useState<number | null>(null);
 
-  const hasActiveFilters = Boolean(search || roleFilter);
+  const hasActiveFilters = Boolean(search || roleFilter || statusFilter);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -78,7 +119,11 @@ export function UserManagement() {
   useEffect(() => {
     setIsLoading(true);
     setLoadError(null);
-    fetchAdminUsers({ search: search || undefined, role: roleFilter || undefined })
+    fetchAdminUsers({
+      search: search || undefined,
+      role: roleFilter || undefined,
+      isActive: statusFilter ? statusFilter === 'true' : undefined,
+    })
       .then((data) => {
         setUsers(data);
         setIsLoading(false);
@@ -89,7 +134,7 @@ export function UserManagement() {
         );
         setIsLoading(false);
       });
-  }, [search, roleFilter, retryCount]);
+  }, [search, roleFilter, statusFilter, retryCount]);
 
   useEffect(() => {
     fetchAdminUsers({ role: 'ADMINISTRATOR' })
@@ -101,6 +146,8 @@ export function UserManagement() {
     setSearchInput('');
     setSearch('');
     setRoleFilter('');
+    setStatusFilter('');
+    setShowDashboardChip(false);
   };
 
   const openCreateModal = () => {
@@ -218,10 +265,14 @@ export function UserManagement() {
         </Button>
       </div>
 
+      {showDashboardChip && (
+        <DrillDownChip onClear={handleClearFilters} onDismiss={() => setShowDashboardChip(false)} />
+      )}
+
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-3">
           <div className="row g-2 align-items-end">
-            <div className="col-12 col-md-6">
+            <div className="col-12 col-md-5">
               <label htmlFor="user-search-input" className="zg-label">
                 Search
               </label>
@@ -234,7 +285,7 @@ export function UserManagement() {
                 onChange={(e) => setSearchInput(e.target.value)}
               />
             </div>
-            <div className="col-8 col-md-4">
+            <div className="col-6 col-md-3">
               <label htmlFor="user-role-filter" className="zg-label">
                 Role
               </label>
@@ -252,7 +303,22 @@ export function UserManagement() {
                 ))}
               </select>
             </div>
-            <div className="col-4 col-md-2">
+            <div className="col-6 col-md-2">
+              <label htmlFor="user-status-filter" className="zg-label">
+                Account Status
+              </label>
+              <select
+                id="user-status-filter"
+                className="form-select field-editable"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as AccountStatusFilter)}
+              >
+                <option value="">All Accounts</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+            <div className="col-12 col-md-2">
               <Button variant="tertiary" onClick={handleClearFilters} disabled={!hasActiveFilters}>
                 Clear Filters
               </Button>
@@ -286,6 +352,9 @@ export function UserManagement() {
 
       {!isLoading && !loadError && users.length > 0 && (
         <>
+        <p className="text-muted small mb-2" aria-live="polite">
+          {users.length} {users.length === 1 ? 'user' : 'users'}
+        </p>
         {/* Desktop / tablet table */}
         <div className="d-none d-md-block card border-0 shadow-sm">
           <div className="table-responsive">
