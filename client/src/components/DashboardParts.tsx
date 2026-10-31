@@ -1,22 +1,10 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { MetricCard } from './MetricCard';
-import { drillDownHref, type DrillDown, type DrillDownState, type StaffDashboardCard } from '../types/dashboard';
+import { DRILL_DOWN_STATE, drillDownHref, type DrillDown, type StaffDashboardCard } from '../types/dashboard';
+import { formatUpdatedAt } from '../utils/bangkokTime';
 
 /** Shared pieces of the Requester and IT Staff dashboards (docs/lab-04/ui-spec.md §3, §4, §8). */
-
-export const DRILL_DOWN_STATE: DrillDownState = { fromDashboard: true };
-
-/** "Updated hh:mm (UTC+7)" from the server's generatedAt (BR-21: display in Asia/Bangkok). */
-export function formatUpdatedAt(iso: string): string {
-  const time = new Date(iso).toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Bangkok',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  return `Updated ${time} (UTC+7)`;
-}
 
 interface DashboardHeaderProps {
   title: string;
@@ -68,21 +56,6 @@ export function DashboardLoading({ cards, gridClassName }: { cards: number; grid
           <li key={i} className="zg-skeleton" />
         ))}
       </ul>
-    </div>
-  );
-}
-
-/** ui-spec §8 "Forbidden (403)". */
-export function DashboardForbidden() {
-  return (
-    <div className="zg-state-panel" role="alert">
-      <div className="zg-state-panel__icon" aria-hidden="true">
-        🔒
-      </div>
-      <div className="zg-state-panel__message">You don't have access to this page.</div>
-      <Link to="/dashboard" className="btn btn-zg-primary">
-        Go to Dashboard
-      </Link>
     </div>
   );
 }

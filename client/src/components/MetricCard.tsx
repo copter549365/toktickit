@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { drillDownHref, type DrillDown, type DrillDownState } from '../types/dashboard';
-
-const DRILL_DOWN_STATE: DrillDownState = { fromDashboard: true };
+import { DRILL_DOWN_STATE, drillDownHref, type DrillDown } from '../types/dashboard';
 
 /** In-page target for a card whose drill-down is the list next to it (My Open Actions). */
 const IN_PAGE_TARGETS: Record<string, string> = { myOpenActions: '#my-open-actions' };

@@ -287,7 +287,8 @@ test.describe('E2E-05: Forbidden access for non-Administrators', () => {
       await expect(page.locator('header').getByRole('link', { name: 'User Management' })).toHaveCount(0);
 
       await page.goto('/admin/users');
-      await expect(page.getByText('You do not have permission to view this page.')).toBeVisible();
+      // Lab 4 D-19 (intentional change, tests.md §4): one forbidden wording across the product.
+      await expect(page.getByText("You don't have access to this page.")).toBeVisible();
       await expect(page.getByTestId('user-management-table')).toHaveCount(0);
 
       const list = await apiAsPage(page, 'GET', '/api/admin/users');

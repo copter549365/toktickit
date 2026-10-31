@@ -87,3 +87,6 @@ export function drillDownHref({ path, query }: DrillDown): string {
   const search = new URLSearchParams(query).toString();
   return search ? `${path}?${search}` : path;
 }
+
+/** Router state set by every dashboard link, so the target list can show "Filtered from Dashboard". */
+export const DRILL_DOWN_STATE: DrillDownState = { fromDashboard: true };

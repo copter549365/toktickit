@@ -26,3 +26,14 @@ export function formatBangkokDateTime(iso: string): string {
     minute: '2-digit',
   });
 }
+
+/** "Updated hh:mm (UTC+7)" for a dashboard's generatedAt (BR-21: display in Asia/Bangkok). */
+export function formatUpdatedAt(iso: string): string {
+  const time = new Date(iso).toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `Updated ${time} (UTC+7)`;
+}

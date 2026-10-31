@@ -858,3 +858,11 @@ body {
     row-gap: 8px;
   }
 }
+
+/* ui-spec §1.4: metric cards and dashboard list links use the Lab 3 focus ring. */
+.zg-metric-card:focus-visible,
+.zg-dashboard-list a:focus-visible,
+.zg-dashboard-section h2 + a:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}

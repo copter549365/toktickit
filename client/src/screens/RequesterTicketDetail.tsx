@@ -218,17 +218,11 @@ export function RequesterTicketDetail() {
   if (!isValidId || notFound) {
     return (
       <div className="py-5 text-center">
-        <div className="zg-state-panel">
-          <div className="zg-state-panel__icon" aria-hidden="true">
-            🚫
-          </div>
-          <div className="zg-state-panel__message">
-            This ticket could not be found, or you do not have access to it.
-          </div>
+        <ErrorState variant="notFound">
           <Button variant="primary" onClick={() => navigate('/tickets')}>
             Back to My Tickets
           </Button>
-        </div>
+        </ErrorState>
       </div>
     );
   }

@@ -406,15 +406,11 @@ export function StaffTicketDetail() {
   if (!isValidId || notFound) {
     return (
       <div className="py-5 text-center">
-        <div className="zg-state-panel">
-          <div className="zg-state-panel__icon" aria-hidden="true">
-            🚫
-          </div>
-          <div className="zg-state-panel__message">This ticket could not be found.</div>
+        <ErrorState variant="notFound">
           <Button variant="primary" onClick={() => navigate('/staff/tickets')}>
             Back to Queue
           </Button>
-        </div>
+        </ErrorState>
       </div>
     );
   }
