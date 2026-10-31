@@ -259,11 +259,13 @@ Captured by `npm run test:e2e` into `artifacts/lab-04/screenshots/`:
 ```
 artifacts/lab-04/screenshots/
 ├── staff-dashboard/     {desktop,tablet,mobile}-staff-dashboard.png, admin-dashboard-desktop.png,
-│                        staff-dashboard-empty.png (olivia), staff-dashboard-error.png, drilldown-unassigned.png
-├── requester-dashboard/ {desktop,tablet,mobile}-requester-dashboard.png, requester-dashboard-empty.png (nina),
-│                        drilldown-waiting-for-me.png, forbidden-staff-dashboard.png
+│                        staff-dashboard-empty.png (e2e.staff.empty, D-18), staff-dashboard-error.png,
+│                        drilldown-unassigned.png, forbidden-staff-dashboard.png (a Requester on /staff/tickets)
+├── requester-dashboard/ {desktop,tablet,mobile}-requester-dashboard.png, requester-dashboard-empty.png
+│                        (e2e.requester.empty, D-17), requester-dashboard-error.png, drilldown-waiting-for-me.png
 ├── actions-taken/       {desktop,tablet,mobile}-actions-list.png, create-form-validation.png,
-│                        inactive-assignee-rejected.png, edit-drawer.png, conflict-banner.png,
+│                        inactive-assignee-rejected.png, view-drawer.png, edit-drawer.png, conflict-banner.png,
 │                        cancel-action-modal.png, multiple-performers-one-ticket.png, requester-readonly-actions.png
-└── workflow/            resolve-gate-blocked.png, resolve-success.png, status-history.png, permitted-transitions.png
+└── workflow/            resolve-gate-blocked.png, resolve-success.png, status-history.png, permitted-transitions.png,
+                         requester-signal-drilldown.png
 ```
