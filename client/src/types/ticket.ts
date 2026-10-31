@@ -36,6 +36,29 @@ export interface TicketDetail extends Ticket {
   ticketOwnerName: string | null;
   publicCommentsCount: number;
   attachments: Attachment[];
+  // Lab 4 api-spec §2.1
+  version?: number;
+  resolvedAt?: string | null;
+  permittedNextStatuses?: TicketStatus[];
+}
+
+// Lab 4 api-spec §2.1 / §2.4
+export type ResolutionConditionKey = 'HAS_OWNER' | 'HAS_COMPLETED_ACTION' | 'NO_OPEN_ACTIONS';
+
+export interface ResolutionGate {
+  met: boolean;
+  conditions: { key: ResolutionConditionKey; met: boolean; label: string }[];
+  warnings: string[];
+}
+
+export interface StatusHistoryEntry {
+  id: number;
+  fromStatus: TicketStatus | null;
+  toStatus: TicketStatus;
+  changedBy: { id: number; name: string } | null;
+  note: string | null;
+  isMigrated: boolean;
+  createdAt: string;
 }
 
 export interface CreateTicketInput {

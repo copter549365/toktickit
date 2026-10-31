@@ -1,17 +1,17 @@
 import { randomUUID } from 'crypto';
-import { request as playwrightRequest, type Locator, type Page } from '@playwright/test';
+import { request as playwrightRequest } from '@playwright/test';
 import { test, expect, lab4Screenshot } from './fixtures';
 import { E2E_PASSWORD, E2E_USERS } from '../lab-03/fixtures';
+import { API_URL, VIEWPORTS, apiAsPage, assertNoHorizontalScroll, loginAs, runToken, signOut } from '../lab-03/helpers';
 import {
-  API_URL,
-  VIEWPORTS,
-  apiAsPage,
-  assertNoHorizontalScroll,
-  createTicketViaUi,
-  loginAs,
-  runToken,
-  signOut,
-} from '../lab-03/helpers';
+  actionRow as rowFor,
+  actionsSection as section,
+  createActionForm as createForm,
+  createActionViaApi,
+  openStaffTicket,
+  pickStatus,
+  prepareTicket,
+} from './helpers';
 
 /**
  * E2E-L4-01..03 (docs/lab-04/tests.md §6): Actions Taken through the real UI and API.
@@ -19,68 +19,6 @@ import {
  * - L4-02: inline validation and server-side rejection of an inactive assignee.
  * - L4-03: cancel-and-lock, and a concurrent edit that ends in the conflict banner.
  */
-
-const section = (page: Page) => page.locator('#actions-taken');
-const actionsTable = (page: Page) => section(page).getByRole('table');
-const createForm = (page: Page) => page.getByRole('form', { name: 'Add Action' });
-
-/** The segmented Status control: the radio is visually hidden, so click its visible label. */
-async function pickStatus(form: Locator, label: 'Planned' | 'In Progress' | 'Completed') {
-  await form.getByRole('radiogroup', { name: 'Status' }).getByText(label, { exact: true }).click();
-  await expect(form.getByRole('radio', { name: label })).toBeChecked();
-}
-
-async function ticketIdForToken(page: Page, token: string): Promise<number> {
-  const res = await apiAsPage(page, 'GET', `/api/tickets?search=${encodeURIComponent(token)}`);
-  expect(res.ok()).toBe(true);
-  const body = await res.json();
-  expect(body.data).toHaveLength(1);
-  return body.data[0].id;
-}
-
-async function myId(page: Page): Promise<number> {
-  const res = await apiAsPage(page, 'GET', '/api/auth/me');
-  return (await res.json()).user.id;
-}
-
-async function createActionViaApi(page: Page, ticketId: number, description: string): Promise<number> {
-  const res = await apiAsPage(page, 'POST', `/api/tickets/${ticketId}/actions`, {
-    clientRequestId: randomUUID(),
-    description,
-  });
-  expect(res.status()).toBe(201);
-  return (await res.json()).data.id;
-}
-
-async function rowFor(page: Page, description: string): Promise<Locator> {
-  const row = actionsTable(page).locator('tr[data-action-id]', { hasText: description });
-  await expect(row).toHaveCount(1);
-  return row;
-}
-
-async function openStaffTicket(page: Page, ticketId: number) {
-  await page.goto(`/staff/tickets/${ticketId}`);
-  await expect(section(page).getByRole('heading', { name: /^Actions Taken \(\d+\)$/ })).toBeVisible();
-}
-
-/** A Requester Ticket the primary staff member owns, ready for work. */
-async function prepareTicket(page: Page, token: string): Promise<number> {
-  await loginAs(page, 'requester');
-  await createTicketViaUi(page, {
-    category: 'Hardware',
-    relatedSystem: 'Corporate Laptop',
-    priority: 'MEDIUM',
-    summary: `${token} Laptop battery drains within an hour`,
-    description: 'The laptop battery drains from full to 10% within an hour of unplugging it.',
-  });
-  const ticketId = await ticketIdForToken(page, token);
-  await signOut(page);
-
-  await loginAs(page, 'staff');
-  const res = await apiAsPage(page, 'PATCH', `/api/staff/tickets/${ticketId}/owner`, { ticketOwnerId: await myId(page) });
-  expect(res.ok()).toBe(true);
-  return ticketId;
-}
 
 test.describe.serial('E2E-L4-01: multiple performers on one Ticket (AC-01, AC-02, AC-05, AC-08)', () => {
   const token = runToken('E2E-L4-01');

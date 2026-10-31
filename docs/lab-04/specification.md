@@ -203,7 +203,7 @@ Complete the TokTickIT service-desk workflow:
   |---|---|---|---|---|
   | `NEW` | `OPEN` | Staff | No | — |
   | `NEW` | `IN_PROGRESS` | Staff | No | — |
-  | `NEW` | `CANCELLED` | Staff, Requester (owner) | Modal | Open actions are auto-cancelled (BR-15) |
+  | `NEW` | `CANCELLED` | Staff, Requester (owner) | Modal | Staff: open actions are auto-cancelled (BR-15). Requester: only when no action is open; otherwise `409 TICKET_HAS_OPEN_ACTIONS` (D-16) |
   | `OPEN` | `IN_PROGRESS` | Staff | No | — |
   | `OPEN` | `WAITING_FOR_REQUESTER` | Staff | No | — |
   | `OPEN` | `CANCELLED` | Staff | Modal | BR-15 |
@@ -622,3 +622,13 @@ The Lab 4 product is Done only when every item below is true on `main`:
   - "Reload latest" shows the latest saved version above the user's draft. The draft is never overwritten.
   - An unchanged Action date/time is not sent on create, so the server records its own now (avoids a "before ticket creation" error when the Ticket was created in the same minute).
   - All dialogs, including the Lab 3 `Modal`, now trap focus, close with Esc, and return focus to their trigger (ui-spec §10).
+- **D-15 (Workflow implementation, Issue 5):**
+  - **Lab 3 tests that conflict with Lab 4 rules:** BR-14 makes Lab 3 tests that resolve a Ticket with no Actions Taken fail with 409. Following D-05, those tests now record a COMPLETED action first, and Lab 3's "summary required for CLOSED" unit assertion follows api-spec §2.2. tests.md §4 lists each change. No other Lab 3 assertion changed.
+  - **Serialization:** status changes and Actions Taken writes take a `SELECT … FOR UPDATE` lock on the Ticket row first. BR-14 is evaluated, and BR-09 re-checked, under that lock. A Resolve racing an action create therefore never leaves an open action on a RESOLVED Ticket (API-L4-20 race test).
+  - **Versioned Lab 3 mutations:** owner, IT Priority, `resolve-indicator`, and Requester cancel use `UPDATE … WHERE version = ?`. With no `expectedVersion`, the version just read is used, so only a true race gives 409.
+  - **Requester cancel note:** the Lab 3 `cancellationReason` becomes the history note for a Requester's own cancellation.
+  - **UI:** confirmations use the shared focus-trapped `Modal`. The Lab 3 labels ("Confirm transition to …", "Confirm", "Never Mind") are kept, so the Lab 3 regression assertions still apply. Opening the Resolve modal re-fetches the Ticket, so the checklist reflects actions added since the page loaded.
+- **D-16 (Requester cancel never touches Actions Taken; Requester writes send `expectedVersion`; PR #69 review):**
+  - **Problem:** the first version of Issue 5 auto-cancelled open actions when a Requester cancelled a NEW Ticket, and recorded the Requester as `lastUpdatedBy`. That contradicts handout §4.3 (Requesters "never create or change" Actions Taken) and the intent of AC-08.
+  - **Rule:** a Requester cancel while any action is `PLANNED` or `IN_PROGRESS` now gets `409 TICKET_HAS_OPEN_ACTIONS` and nothing changes. Staff have already started work, so the Requester is asked to leave a Public Comment instead. The Requester detail omits `CANCELLED` from `permittedNextStatuses` in that case, so the UI hides the button. `COMPLETED` and `CANCELLED` actions do not block, and they are left untouched. A staff cancel still auto-cancels open actions (BR-15), recorded under the staff member.
+  - **Client:** D-03 says the Lab 4 client always sends `expectedVersion`. The Requester's cancel and "Problem Appears Resolved" now send the version on screen. A `409 STALE_UPDATE` (for example, staff claimed the Ticket meanwhile) shows an explanation and reloads the Ticket.

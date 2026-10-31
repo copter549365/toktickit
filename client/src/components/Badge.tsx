@@ -44,7 +44,7 @@ const PRIORITY_CLASS: Record<TicketPriority, string> = {
 };
 
 // docs/lab-03/ui-spec.md §3.3
-const STATUS_LABEL: Record<TicketCurrentStatus, string> = {
+export const STATUS_LABEL: Record<TicketCurrentStatus, string> = {
   NEW: 'New',
   OPEN: 'Open',
   IN_PROGRESS: 'In Progress',
@@ -111,6 +111,16 @@ export function Badge(props: BadgeProps) {
   }
 
   return <span className={`zg-badge ${STATUS_CLASS[props.value]}`}>{STATUS_LABEL[props.value]}</span>;
+}
+
+/** Lab 4 ui-spec §6.5: the Requester's advisory "appears resolved" signal, as text with an icon. */
+export function RequesterSaysResolvedPill() {
+  return (
+    <span className="zg-badge badge-requester-says">
+      <span aria-hidden="true">✓</span>
+      <span>Requester says resolved</span>
+    </span>
+  );
 }
 
 export default Badge;

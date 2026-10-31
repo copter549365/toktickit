@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import fs from 'fs';
 import { prisma } from './db.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
 import {
   validateTicketInputFields,
@@ -21,6 +22,8 @@ import {
 import {
   isValidStaffStatusTransition,
   getPermittedNextStatuses,
+  permittedNextStatuses,
+  evaluateResolutionGate,
   validateStatusChangeFields,
 } from './utils/statusTransition.js';
 import {
@@ -516,6 +519,69 @@ app.get(
   },
 );
 
+// ---------------------------------------------------------------------------
+// Lab 4 Ticket workflow helpers (docs/lab-04/specification.md BR-13..BR-18)
+// ---------------------------------------------------------------------------
+
+const STALE_TICKET_MESSAGE = 'This ticket was changed by someone else. Reload to see the latest version.';
+const OPEN_ACTION_STATUSES = ['PLANNED', 'IN_PROGRESS'] as const;
+
+/** BR-18 / D-03: `expectedVersion` is optional on Lab 3 Ticket endpoints, but must be an integer when sent. */
+function readExpectedVersion(body: unknown): { ok: true; value: number | undefined } | { ok: false } {
+  const value = (body as Record<string, unknown> | undefined)?.expectedVersion;
+  if (value === undefined || value === null) return { ok: true, value: undefined };
+  return typeof value === 'number' && Number.isInteger(value) ? { ok: true, value } : { ok: false };
+}
+
+function sendInvalidExpectedVersion(res: Response): void {
+  res.status(400).json({
+    error: 'VALIDATION_FAILED',
+    message: 'expectedVersion must be an integer.',
+    fieldErrors: { expectedVersion: 'expectedVersion must be an integer.' },
+  });
+}
+
+function sendStaleTicket(res: Response, currentVersion: number | undefined): void {
+  res.status(409).json({ error: 'STALE_UPDATE', message: STALE_TICKET_MESSAGE, currentVersion });
+}
+
+/**
+ * Serializes writers of one Ticket: status changes, and Actions Taken writes, take this row lock
+ * first, so the BR-14 gate and the BR-09 "writable" check always see each other's committed work.
+ */
+async function lockTicketRow(tx: Prisma.TransactionClient, ticketId: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "Ticket" WHERE id = ${ticketId} FOR UPDATE`;
+}
+
+/**
+ * BR-18: compare-and-increment in one UPDATE … WHERE version = ?. Returns false when another write
+ * got there first. Without an `expectedVersion` the version read just before is used (Lab 3 callers).
+ */
+async function updateTicketIfVersion(
+  ticketId: number,
+  version: number,
+  data: Prisma.TicketUncheckedUpdateManyInput,
+): Promise<boolean> {
+  const { count } = await prisma.ticket.updateMany({
+    where: { id: ticketId, version },
+    data: { ...data, version: { increment: 1 } },
+  });
+  return count === 1;
+}
+
+/** BR-15: cancelling a Ticket cancels its open actions in the same transaction. */
+function cancelOpenActions(tx: Prisma.TransactionClient, ticketId: number, actorId: number) {
+  return tx.actionTaken.updateMany({
+    where: { ticketId, status: { in: [...OPEN_ACTION_STATUSES] } },
+    data: {
+      status: 'CANCELLED',
+      cancelReason: 'Ticket cancelled',
+      lastUpdatedById: actorId,
+      version: { increment: 1 },
+    },
+  });
+}
+
 // Ticket Detail Endpoint (api-spec.md §2 "GET /api/tickets/:id")
 app.get(
   '/api/tickets/:id',
@@ -540,6 +606,7 @@ app.get(
         ticketOwner: { select: { name: true } },
         attachments: { orderBy: { uploadedAt: 'asc' } },
         _count: { select: { publicComments: true } },
+        actionsTaken: { where: { status: { in: [...OPEN_ACTION_STATUSES] } }, select: { id: true }, take: 1 },
       },
     });
 
@@ -566,6 +633,10 @@ app.get(
       ticketOwnerName: ticket.ticketOwner?.name ?? null,
       requesterResolvedIndicator: ticket.requesterResolvedIndicator,
       publicCommentsCount: ticket._count.publicComments,
+      // Lab 4 api-spec §2.1 (no resolutionGate for the Requester)
+      version: ticket.version,
+      resolvedAt: ticket.resolvedAt,
+      permittedNextStatuses: permittedNextStatuses(ticket.currentStatus, 'REQUESTER', true, ticket.actionsTaken.length > 0),
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       attachments: ticket.attachments.map((a) => ({
@@ -611,6 +682,16 @@ app.patch(
         return;
       }
 
+      const expected = readExpectedVersion(req.body);
+      if (!expected.ok) {
+        sendInvalidExpectedVersion(res);
+        return;
+      }
+      if (expected.value !== undefined && expected.value !== ticket.version) {
+        sendStaleTicket(res, ticket.version);
+        return;
+      }
+
       // BR-06: only actionable while IT Staff is actively working the ticket.
       if (!RESOLVE_INDICATOR_ELIGIBLE_STATUSES.includes(ticket.currentStatus)) {
         res.status(400).json({
@@ -620,14 +701,17 @@ app.patch(
         return;
       }
 
-      const updated = await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { requesterResolvedIndicator: true },
-      });
+      // Lab 4 BR-16: advisory only — the status is never touched.
+      if (!(await updateTicketIfVersion(ticketId, ticket.version, { requesterResolvedIndicator: true }))) {
+        const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+        sendStaleTicket(res, current?.version);
+        return;
+      }
 
       res.status(200).json({
-        id: updated.id,
-        requesterResolvedIndicator: updated.requesterResolvedIndicator,
+        id: ticket.id,
+        requesterResolvedIndicator: true,
+        version: ticket.version + 1,
         message: 'Problem resolution indicated. IT Staff will review and formally complete the ticket.',
       });
     } catch (error) {
@@ -660,24 +744,67 @@ app.patch(
         return;
       }
 
-      // FR-13.1, BR-13: only cancellable before IT Staff has taken it up.
-      if (ticket.currentStatus !== 'NEW') {
+      const expected = readExpectedVersion(req.body);
+      if (!expected.ok) {
+        sendInvalidExpectedVersion(res);
+        return;
+      }
+
+      const rawReason = req.body?.cancellationReason;
+      const note = typeof rawReason === 'string' && rawReason.trim() ? rawReason.trim().slice(0, 2000) : null;
+
+      // Lab 4 BR-17: the status and its history row change together.
+      const outcome = await prisma.$transaction(async (tx) => {
+        await lockTicketRow(tx, ticketId);
+        const current = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+        if (expected.value !== undefined && expected.value !== current.version) {
+          return { kind: 'stale' as const, version: current.version };
+        }
+        // FR-13.1, BR-13: only cancellable before IT Staff has taken it up.
+        if (current.currentStatus !== 'NEW') return { kind: 'notNew' as const };
+
+        // D-16: a Requester never changes Actions Taken (handout §4.3, AC-08). Open staff work
+        // blocks the Requester's cancel instead of being auto-cancelled in their name.
+        const openActions = await tx.actionTaken.count({
+          where: { ticketId, status: { in: [...OPEN_ACTION_STATUSES] } },
+        });
+        if (openActions > 0) return { kind: 'openActions' as const };
+
+        const updated = await tx.ticket.update({
+          where: { id: ticketId },
+          data: { currentStatus: 'CANCELLED', requesterResolvedIndicator: false, version: { increment: 1 } },
+        });
+        await tx.ticketStatusChange.create({
+          data: { ticketId, fromStatus: 'NEW', toStatus: 'CANCELLED', changedById: authUser.id, note },
+        });
+        return { kind: 'ok' as const, updated };
+      });
+
+      if (outcome.kind === 'stale') {
+        sendStaleTicket(res, outcome.version);
+        return;
+      }
+      if (outcome.kind === 'notNew') {
         res.status(400).json({
           error: 'TICKET_ALREADY_IN_PROGRESS',
           message: 'This ticket can no longer be cancelled because it is already being worked on.',
         });
         return;
       }
-
-      const updated = await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { currentStatus: 'CANCELLED' },
-      });
+      if (outcome.kind === 'openActions') {
+        res.status(409).json({
+          error: 'TICKET_HAS_OPEN_ACTIONS',
+          message:
+            'IT Staff has already started work on this ticket, so it can no longer be cancelled here. Add a comment to ask them to cancel it.',
+        });
+        return;
+      }
 
       res.status(200).json({
-        id: updated.id,
-        currentStatus: updated.currentStatus,
-        updatedAt: updated.updatedAt,
+        id: outcome.updated.id,
+        currentStatus: outcome.updated.currentStatus,
+        version: outcome.updated.version,
+        updatedAt: outcome.updated.updatedAt,
       });
     } catch (error) {
       console.error('Error cancelling ticket:', error);
@@ -874,6 +1001,46 @@ app.post(
       });
     } catch (error) {
       console.error('Error posting note:', error);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  },
+);
+
+// GET /api/tickets/:id/status-history — Lab 4 FR-09, BR-17 (api-spec §2.4). Read-only: no
+// POST/PATCH/DELETE route exists, so history can never be edited.
+app.get(
+  '/api/tickets/:id/status-history',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authUser = (req as any).user as AuthenticatedUser;
+      const ticketId = parseInt(req.params.id as string, 10);
+
+      if (isNaN(ticketId) || !(await loadTicketForComment(ticketId, authUser))) {
+        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+        return;
+      }
+
+      const rows = await prisma.ticketStatusChange.findMany({
+        where: { ticketId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        include: { changedBy: { select: { id: true, name: true } } },
+      });
+
+      res.status(200).json({
+        data: rows.map((h) => ({
+          id: h.id,
+          fromStatus: h.fromStatus,
+          toStatus: h.toStatus,
+          changedBy: h.changedBy,
+          note: h.note,
+          isMigrated: h.isMigrated,
+          createdAt: h.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error('Error fetching status history:', error);
       res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   },
@@ -1078,11 +1245,15 @@ app.post(
       // BR-05: identity and completion fields come from the session and server clock only.
       const completed = status === 'COMPLETED';
       try {
-        const [created] = await prisma.$transaction([
-          prisma.actionTaken.create({
+        const created = await prisma.$transaction(async (tx) => {
+          // Re-check BR-09 under the Ticket row lock, so a concurrent Resolve cannot slip in (BR-14).
+          await lockTicketRow(tx, ticketId);
+          const locked = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { currentStatus: true } });
+          if (!ACTION_WRITABLE_TICKET_STATUSES.includes(locked.currentStatus)) return null;
+          const action = await tx.actionTaken.create({
             data: {
               ticketId,
-              clientRequestId: input.clientRequestId,
+              clientRequestId: input.clientRequestId as string,
               status: status as ActionStatus,
               ...values,
               assigneeId: assigneeId as number,
@@ -1092,9 +1263,14 @@ app.post(
               completedAt: completed ? now : null,
             },
             include: actionInclude,
-          }),
-          touchTicketActivity(ticketId),
-        ]);
+          });
+          await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: now }, select: { id: true } });
+          return action;
+        });
+        if (!created) {
+          sendTicketNotWritable(res);
+          return;
+        }
         res.status(201).json({ data: serializeAction(created) });
       } catch (error) {
         // A concurrent retry won the race on @@unique([ticketId, clientRequestId]).
@@ -1214,6 +1390,9 @@ app.patch(
       const completing = nextStatus === 'COMPLETED';
       // BR-18: the version check and increment are one atomic UPDATE … WHERE version = ?.
       const updated = await prisma.$transaction(async (tx) => {
+        await lockTicketRow(tx, ticketId);
+        const locked = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { currentStatus: true } });
+        if (!ACTION_WRITABLE_TICKET_STATUSES.includes(locked.currentStatus)) return 'notWritable' as const;
         const { count } = await tx.actionTaken.updateMany({
           where: { id: actionId, version: expectedVersion },
           data: {
@@ -1230,6 +1409,10 @@ app.patch(
         return tx.actionTaken.findUniqueOrThrow({ where: { id: actionId }, include: actionInclude });
       });
 
+      if (updated === 'notWritable') {
+        sendTicketNotWritable(res);
+        return;
+      }
       if (!updated) {
         const current = await prisma.actionTaken.findUnique({ where: { id: actionId }, select: { version: true } });
         res.status(409).json({ error: 'STALE_UPDATE', message: STALE_UPDATE_MESSAGE, currentVersion: current?.version });
@@ -1653,8 +1836,9 @@ app.get(
           category: { select: { name: true } },
           relatedSystem: { select: { name: true } },
           requester: { select: { id: true, name: true, email: true } },
-          ticketOwner: { select: { id: true, name: true, email: true } },
+          ticketOwner: { select: { id: true, name: true, email: true, isActive: true, role: true } },
           attachments: { orderBy: { uploadedAt: 'asc' } },
+          actionsTaken: { select: { status: true, followUpRequired: true } },
           _count: { select: { publicComments: true, internalNotes: true } },
         },
       });
@@ -1663,6 +1847,10 @@ app.get(
         res.status(404).json({ error: 'TICKET_NOT_FOUND' });
         return;
       }
+
+      const owner = ticket.ticketOwner
+        ? { id: ticket.ticketOwner.id, name: ticket.ticketOwner.name, email: ticket.ticketOwner.email }
+        : null;
 
       res.status(200).json({
         id: ticket.id,
@@ -1679,12 +1867,16 @@ app.get(
         currentStatus: ticket.currentStatus,
         permittedNextStatuses: getPermittedNextStatuses(ticket.currentStatus),
         ticketOwnerId: ticket.ticketOwnerId,
-        owner: ticket.ticketOwner,
+        owner,
         requesterResolvedIndicator: ticket.requesterResolvedIndicator,
         resolutionSummary: ticket.resolutionSummary,
         reopenReason: ticket.reopenReason,
         publicCommentsCount: ticket._count.publicComments,
         internalNotesCount: ticket._count.internalNotes,
+        // Lab 4 api-spec §2.1: BR-14 conditions at read time; re-checked on write.
+        version: ticket.version,
+        resolvedAt: ticket.resolvedAt,
+        resolutionGate: evaluateResolutionGate(ticket.ticketOwner, ticket.actionsTaken),
         createdAt: ticket.createdAt,
         updatedAt: ticket.updatedAt,
         attachments: ticket.attachments.map((a) => ({
@@ -1727,6 +1919,16 @@ app.patch(
         return;
       }
 
+      const expected = readExpectedVersion(req.body);
+      if (!expected.ok) {
+        sendInvalidExpectedVersion(res);
+        return;
+      }
+      if (expected.value !== undefined && expected.value !== ticket.version) {
+        sendStaleTicket(res, ticket.version);
+        return;
+      }
+
       const rawOwnerId = req.body?.ticketOwnerId;
       let ticketOwnerId: number | null;
 
@@ -1750,9 +1952,13 @@ app.patch(
         ticketOwnerId = parsedOwnerId;
       }
 
-      const updated = await prisma.ticket.update({
+      if (!(await updateTicketIfVersion(ticketId, ticket.version, { ticketOwnerId }))) {
+        const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+        sendStaleTicket(res, current?.version);
+        return;
+      }
+      const updated = await prisma.ticket.findUniqueOrThrow({
         where: { id: ticketId },
-        data: { ticketOwnerId },
         include: { ticketOwner: { select: { id: true, name: true, email: true } } },
       });
 
@@ -1760,6 +1966,7 @@ app.patch(
         id: updated.id,
         ticketOwnerId: updated.ticketOwnerId,
         owner: updated.ticketOwner,
+        version: updated.version,
       });
     } catch (error) {
       console.error('Error updating ticket owner:', error);
@@ -1799,12 +2006,23 @@ app.patch(
         return;
       }
 
-      const updated = await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { itPriority },
-      });
+      const expected = readExpectedVersion(req.body);
+      if (!expected.ok) {
+        sendInvalidExpectedVersion(res);
+        return;
+      }
+      if (expected.value !== undefined && expected.value !== ticket.version) {
+        sendStaleTicket(res, ticket.version);
+        return;
+      }
 
-      res.status(200).json({ id: updated.id, itPriority: updated.itPriority });
+      if (!(await updateTicketIfVersion(ticketId, ticket.version, { itPriority }))) {
+        const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+        sendStaleTicket(res, current?.version);
+        return;
+      }
+
+      res.status(200).json({ id: ticket.id, itPriority, version: ticket.version + 1 });
     } catch (error) {
       console.error('Error updating IT priority:', error);
       res.status(500).json({ error: 'INTERNAL_ERROR' });
@@ -1827,47 +2045,119 @@ app.patch(
         return;
       }
 
-      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
-      if (!ticket) {
-        res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+      const authUser = (req as any).user as AuthenticatedUser;
+      const expected = readExpectedVersion(req.body);
+      if (!expected.ok) {
+        sendInvalidExpectedVersion(res);
         return;
       }
-
       const targetStatus = req.body?.status;
-      if (typeof targetStatus !== 'string' || !isValidStaffStatusTransition(ticket.currentStatus, targetStatus)) {
-        const permitted = getPermittedNextStatuses(ticket.currentStatus);
-        res.status(400).json({
-          error: 'INVALID_STATUS_TRANSITION',
-          message: `Cannot transition ticket from '${ticket.currentStatus}' to '${targetStatus}'. Permitted transitions: [${permitted.map((s) => `'${s}'`).join(', ')}].`,
+
+      // Lab 4 api-spec §2.2: one transaction — lock, version, BR-13, fields, BR-14, BR-15, BR-17.
+      const outcome = await prisma.$transaction(async (tx) => {
+        await lockTicketRow(tx, ticketId);
+        const ticket = await tx.ticket.findUnique({
+          where: { id: ticketId },
+          include: { ticketOwner: { select: { isActive: true, role: true } } },
         });
-        return;
-      }
+        if (!ticket) return { kind: 'notFound' as const };
+        if (expected.value !== undefined && expected.value !== ticket.version) {
+          return { kind: 'stale' as const, version: ticket.version };
+        }
+        if (typeof targetStatus !== 'string' || !isValidStaffStatusTransition(ticket.currentStatus, targetStatus)) {
+          return { kind: 'invalidTransition' as const, from: ticket.currentStatus };
+        }
+        const fields = validateStatusChangeFields(ticket.currentStatus, targetStatus, req.body ?? {});
+        if (!fields.isValid) return { kind: 'fields' as const, fieldErrors: fields.fieldErrors };
 
-      const fieldValidation = validateStatusChangeFields(ticket.currentStatus, targetStatus, req.body ?? {});
-      if (!fieldValidation.isValid) {
-        res.status(400).json({
-          error: 'VALIDATION_FAILED',
-          message: 'Please correct the highlighted fields.',
-          fieldErrors: fieldValidation.fieldErrors,
+        if (targetStatus === 'RESOLVED') {
+          const actions = await tx.actionTaken.findMany({
+            where: { ticketId },
+            select: { status: true, followUpRequired: true },
+          });
+          const gate = evaluateResolutionGate(ticket.ticketOwner, actions);
+          if (!gate.met) {
+            return {
+              kind: 'gate' as const,
+              unmetConditions: gate.conditions.filter((c) => !c.met).map(({ key, label }) => ({ key, label })),
+            };
+          }
+        }
+
+        // BR-15 side effects.
+        const data: Prisma.TicketUncheckedUpdateInput = {
+          currentStatus: targetStatus as typeof ticket.currentStatus,
+          version: { increment: 1 },
+        };
+        if (fields.trimmedResolutionSummary !== undefined) data.resolutionSummary = fields.trimmedResolutionSummary;
+        if (targetStatus === 'RESOLVED') {
+          data.resolvedAt = new Date();
+          data.requesterResolvedIndicator = false;
+        }
+        if (targetStatus === 'REOPENED') {
+          data.resolvedAt = null;
+          data.reopenReason = fields.trimmedReopenReason!;
+        }
+        if (targetStatus === 'CANCELLED') {
+          data.requesterResolvedIndicator = false;
+          await cancelOpenActions(tx, ticketId, authUser.id);
+        }
+
+        const updated = await tx.ticket.update({ where: { id: ticketId }, data });
+        // BR-17: the note is the resolution summary, the reopen reason, or the optional note.
+        await tx.ticketStatusChange.create({
+          data: {
+            ticketId,
+            fromStatus: ticket.currentStatus,
+            toStatus: updated.currentStatus,
+            changedById: authUser.id,
+            note: fields.trimmedResolutionSummary ?? fields.trimmedReopenReason ?? fields.trimmedNote ?? null,
+          },
         });
-        return;
+        return { kind: 'ok' as const, updated };
+      });
+
+      switch (outcome.kind) {
+        case 'notFound':
+          res.status(404).json({ error: 'TICKET_NOT_FOUND' });
+          return;
+        case 'stale':
+          sendStaleTicket(res, outcome.version);
+          return;
+        case 'invalidTransition': {
+          const permitted = getPermittedNextStatuses(outcome.from);
+          res.status(400).json({
+            error: 'INVALID_STATUS_TRANSITION',
+            message: `Cannot transition ticket from '${outcome.from}' to '${targetStatus}'. Permitted transitions: [${permitted.map((s) => `'${s}'`).join(', ')}].`,
+          });
+          return;
+        }
+        case 'fields':
+          res.status(400).json({
+            error: 'VALIDATION_FAILED',
+            message: 'Please correct the highlighted fields.',
+            fieldErrors: outcome.fieldErrors,
+          });
+          return;
+        case 'gate':
+          res.status(409).json({
+            error: 'RESOLUTION_GATE_NOT_MET',
+            message: 'This ticket cannot be resolved yet.',
+            unmetConditions: outcome.unmetConditions,
+          });
+          return;
       }
 
-      const data: any = { currentStatus: targetStatus };
-      if (fieldValidation.trimmedResolutionSummary !== undefined) {
-        data.resolutionSummary = fieldValidation.trimmedResolutionSummary;
-      }
-      if (fieldValidation.trimmedReopenReason !== undefined) {
-        data.reopenReason = fieldValidation.trimmedReopenReason;
-      }
-
-      const updated = await prisma.ticket.update({ where: { id: ticketId }, data });
-
+      const { updated } = outcome;
       res.status(200).json({
         id: updated.id,
         currentStatus: updated.currentStatus,
         resolutionSummary: updated.resolutionSummary,
         reopenReason: updated.reopenReason,
+        resolvedAt: updated.resolvedAt,
+        requesterResolvedIndicator: updated.requesterResolvedIndicator,
+        version: updated.version,
+        permittedNextStatuses: getPermittedNextStatuses(updated.currentStatus),
         updatedAt: updated.updatedAt,
       });
     } catch (error) {

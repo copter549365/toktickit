@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { test, expect, type Page } from '@playwright/test';
 import { E2E_USERS } from './fixtures';
 import { apiAsPage, createTicketViaUi, loginAs, runToken, screenshotPath, signOut } from './helpers';
@@ -159,6 +160,14 @@ test.describe.serial('E2E-03 / E2E-04 / E2E-07: Ticket lifecycle across Requeste
 
   test('IT Staff sees the resolution indicator, reassigns, and formally resolves with a summary', async ({ page }) => {
     await loginAs(page, 'staff');
+    // Lab 4 BR-14 (docs/lab-04/specification.md D-15): RESOLVED now needs a completed Action Taken.
+    const action = await apiAsPage(page, 'POST', `/api/tickets/${ticketId}/actions`, {
+      clientRequestId: randomUUID(),
+      description: 'Replaced the HDMI switch behind the lectern.',
+      status: 'COMPLETED',
+      result: 'Projector shows the laptop image on both HDMI inputs.',
+    });
+    expect(action.status()).toBe(201);
     await page.goto(`/staff/tickets/${ticketId}`);
 
     await expect(page.getByTestId('resolution-banner')).toBeVisible();

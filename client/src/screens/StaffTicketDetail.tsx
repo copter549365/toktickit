@@ -11,18 +11,27 @@ import {
 } from '../api/staffTickets';
 import { fetchComments, postComment, fetchNotes, postNote } from '../api/tickets';
 import { downloadAttachment } from '../api/attachments';
-import { Badge } from '../components/Badge';
+import { Badge, RequesterSaysResolvedPill } from '../components/Badge';
 import { Button } from '../components/Button';
 import { FormField } from '../components/FormField';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { ActionsTakenSection } from '../components/ActionsTakenSection';
+import { Modal } from '../components/Modal';
+import { StatusHistory } from '../components/StatusHistory';
 import { ACTION_WRITABLE_TICKET_STATUSES } from '../types/actionTaken';
 import { formatDate } from '../utils/formatDate';
 import { formatBytes } from '../utils/attachmentValidation';
 import type { PublicComment, InternalNote } from '../types/comment';
 import type { StaffMember, StaffTicketDetailData } from '../types/staffTicket';
-import type { Priority, TicketStatus } from '../types/ticket';
+import type { Priority, ResolutionConditionKey, ResolutionGate, TicketStatus } from '../types/ticket';
+
+const STALE_TICKET_MESSAGE = 'This ticket was changed by someone else. Reload to see the latest version.';
+const TOAST_MS = 4000;
+
+function isStale(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.data.error === 'STALE_UPDATE';
+}
 
 const MAX_MESSAGE_LENGTH = 2000;
 const CONFIRM_REQUIRED_STATUSES: TicketStatus[] = ['RESOLVED', 'CLOSED', 'REOPENED', 'CANCELLED'];
@@ -71,6 +80,14 @@ export function StaffTicketDetail() {
   const [reopenReasonInput, setReopenReasonInput] = useState('');
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // Lab 4 workflow feedback (docs/lab-04/ui-spec.md §6, §8)
+  const [isStaleTicket, setIsStaleTicket] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
+  /** The gate as last reported by a 409, until the ticket is re-fetched (ui-spec §6.2). */
+  const [gateFromServer, setGateFromServer] = useState<ResolutionGate | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [workflowRefresh, setWorkflowRefresh] = useState(0);
 
   // Public Comments
   const [comments, setComments] = useState<PublicComment[]>([]);
@@ -125,6 +142,37 @@ export function StaffTicketDetail() {
     return cleanup;
   }, [load, retryCount]);
 
+  /** Re-fetches the ticket in place after a mutation, without the full-page loading state (ui-spec §6.3). */
+  const refreshTicket = useCallback(async () => {
+    const data = await fetchStaffTicketById(ticketId);
+    setTicket(data);
+    setSelectedOwnerId(data.ticketOwnerId ? String(data.ticketOwnerId) : '');
+    setSelectedPriority(data.itPriority ?? 'MEDIUM');
+    setGateFromServer(null);
+    return data;
+  }, [ticketId]);
+
+  const handleReloadLatest = async () => {
+    setIsReloading(true);
+    try {
+      await refreshTicket();
+      setIsStaleTicket(false);
+      setStatusError(null);
+      setOwnerError(null);
+      setPriorityError(null);
+    } catch {
+      setStatusError('Unable to reload this ticket. Please try again.');
+    } finally {
+      setIsReloading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   useEffect(() => {
     fetchStaffMembers()
       .then(setStaffMembers)
@@ -174,10 +222,11 @@ export function StaffTicketDetail() {
     setIsSavingOwner(true);
     setOwnerError(null);
     try {
-      await updateTicketOwner(ticketId, user.id);
-      setRetryCount((c) => c + 1);
-    } catch {
-      setOwnerError('Unable to claim this ticket right now. Please try again.');
+      await updateTicketOwner(ticketId, user.id, ticket?.version);
+      await refreshTicket();
+    } catch (err) {
+      if (isStale(err)) setIsStaleTicket(true);
+      else setOwnerError('Unable to claim this ticket right now. Please try again.');
     } finally {
       setIsSavingOwner(false);
     }
@@ -188,10 +237,12 @@ export function StaffTicketDetail() {
     setOwnerError(null);
     try {
       const ticketOwnerId = selectedOwnerId ? Number(selectedOwnerId) : null;
-      await updateTicketOwner(ticketId, ticketOwnerId);
-      setRetryCount((c) => c + 1);
+      await updateTicketOwner(ticketId, ticketOwnerId, ticket?.version);
+      await refreshTicket();
     } catch (err) {
-      if (err instanceof ApiError && err.data.error === 'INVALID_TICKET_OWNER') {
+      if (isStale(err)) {
+        setIsStaleTicket(true);
+      } else if (err instanceof ApiError && err.data.error === 'INVALID_TICKET_OWNER') {
         setOwnerError('That user is not an active IT Staff member or Administrator.');
       } else {
         setOwnerError('Unable to update the ticket owner right now. Please try again.');
@@ -205,10 +256,11 @@ export function StaffTicketDetail() {
     setIsSavingPriority(true);
     setPriorityError(null);
     try {
-      await updateItPriority(ticketId, selectedPriority);
-      setRetryCount((c) => c + 1);
-    } catch {
-      setPriorityError('Unable to update IT Priority right now. Please try again.');
+      await updateItPriority(ticketId, selectedPriority, ticket?.version);
+      await refreshTicket();
+    } catch (err) {
+      if (isStale(err)) setIsStaleTicket(true);
+      else setPriorityError('Unable to update IT Priority right now. Please try again.');
     } finally {
       setIsSavingPriority(false);
     }
@@ -220,11 +272,18 @@ export function StaffTicketDetail() {
     setResolutionSummaryInput('');
     setReopenReasonInput('');
     setShowStatusConfirm(false);
+    setGateFromServer(null);
   };
 
-  const handleSaveStatusClick = () => {
+  const handleSaveStatusClick = async () => {
     if (!selectedStatus) return;
     if (CONFIRM_REQUIRED_STATUSES.includes(selectedStatus as TicketStatus)) {
+      // The checklist must reflect actions added or completed since the page loaded (BR-14), and
+      // the Actions Taken list is refreshed with it so both agree.
+      if (selectedStatus === 'RESOLVED') {
+        await refreshTicket().catch(() => undefined);
+        setWorkflowRefresh((n) => n + 1);
+      }
       setShowStatusConfirm(true);
       return;
     }
@@ -234,10 +293,12 @@ export function StaffTicketDetail() {
   const applyStatusChange = async () => {
     if (!ticket || !selectedStatus) return;
 
-    const needsResolutionSummary = selectedStatus === 'RESOLVED' || selectedStatus === 'CLOSED';
+    // Lab 4 api-spec §2.2: a summary is required for RESOLVED and optional for CLOSED.
+    const summary = resolutionSummaryInput.trim();
     const needsReopenReason = ticket.currentStatus === 'RESOLVED' && selectedStatus === 'REOPENED';
+    const sendsSummary = selectedStatus === 'RESOLVED' || (selectedStatus === 'CLOSED' && summary.length > 0);
 
-    if (needsResolutionSummary && resolutionSummaryInput.trim().length < 5) {
+    if (sendsSummary && summary.length < 5) {
       setStatusError('Resolution summary must be at least 5 characters.');
       return;
     }
@@ -250,13 +311,38 @@ export function StaffTicketDetail() {
     setStatusError(null);
     try {
       await updateTicketStatus(ticketId, selectedStatus as TicketStatus, {
-        resolutionSummary: needsResolutionSummary ? resolutionSummaryInput.trim() : undefined,
+        resolutionSummary: sendsSummary ? summary : undefined,
         reopenReason: needsReopenReason ? reopenReasonInput.trim() : undefined,
+        expectedVersion: ticket.version,
       });
       setShowStatusConfirm(false);
-      setRetryCount((c) => c + 1);
+      setToast(`Status changed to ${STATUS_LABEL[selectedStatus as TicketStatus]}`);
+      setSelectedStatus('');
+      setResolutionSummaryInput('');
+      setReopenReasonInput('');
+      // ui-spec §6.3: badge, permitted list, history and (auto-cancelled) actions refresh in place.
+      setWorkflowRefresh((n) => n + 1);
+      await refreshTicket().catch(() => setRetryCount((c) => c + 1));
     } catch (err) {
-      if (err instanceof ApiError && err.data.fieldErrors) {
+      if (isStale(err)) {
+        setIsStaleTicket(true);
+      } else if (err instanceof ApiError && err.data.error === 'RESOLUTION_GATE_NOT_MET') {
+        // Refresh the checklist from the error body; the summary stays typed (ui-spec §6.2).
+        const unmet = new Set(
+          ((err.data as { unmetConditions?: { key: ResolutionConditionKey }[] }).unmetConditions ?? []).map((c) => c.key),
+        );
+        const base = ticket.resolutionGate;
+        if (base) {
+          setGateFromServer({
+            ...base,
+            met: false,
+            conditions: base.conditions.map((c) => ({ ...c, met: !unmet.has(c.key) })),
+          });
+        }
+        setStatusError(
+          'This ticket cannot be resolved yet: someone added or reopened an action, or the owner changed. Review the checklist below.',
+        );
+      } else if (err instanceof ApiError && err.data.fieldErrors) {
         const firstError = Object.values(err.data.fieldErrors)[0];
         setStatusError(firstError ?? 'Unable to update the status. Please try again.');
       } else if (err instanceof ApiError && err.data.error === 'INVALID_STATUS_TRANSITION') {
@@ -349,11 +435,26 @@ export function StaffTicketDetail() {
     );
   }
 
-  const needsResolutionSummary = selectedStatus === 'RESOLVED' || selectedStatus === 'CLOSED';
+  const isResolving = selectedStatus === 'RESOLVED';
+  const showsResolutionSummary = isResolving || selectedStatus === 'CLOSED';
   const needsReopenReason = ticket.currentStatus === 'RESOLVED' && selectedStatus === 'REOPENED';
+  const summaryLength = resolutionSummaryInput.trim().length;
+  // BR-14: the server is the authority; a payload without a gate (Lab 3) never blocks here.
+  const gate = gateFromServer ?? ticket.resolutionGate ?? null;
   const confirmFieldsValid =
-    (!needsResolutionSummary || resolutionSummaryInput.trim().length >= 5) &&
-    (!needsReopenReason || reopenReasonInput.trim().length >= 5);
+    (!isResolving || summaryLength >= 5) &&
+    (selectedStatus !== 'CLOSED' || summaryLength === 0 || summaryLength >= 5) &&
+    (!needsReopenReason || reopenReasonInput.trim().length >= 5) &&
+    (!isResolving || !gate || gate.met);
+
+  const conflictBanner = isStaleTicket && (
+    <div className="zg-conflict-banner mb-3" role="alert">
+      <div className="fw-semibold mb-2">{STALE_TICKET_MESSAGE}</div>
+      <Button variant="primary" onClick={handleReloadLatest} busy={isReloading} busyLabel="Reloading…">
+        Reload latest
+      </Button>
+    </div>
+  );
 
   return (
     <div className="container-fluid p-0">
@@ -374,6 +475,7 @@ export function StaffTicketDetail() {
             {ticket.ticketNumber}
           </h1>
           <Badge kind="status" value={ticket.currentStatus} />
+          {ticket.requesterResolvedIndicator && <RequesterSaysResolvedPill />}
         </div>
         <Button variant="secondary" onClick={() => navigate('/staff/tickets')}>
           Back to Queue
@@ -463,6 +565,7 @@ export function StaffTicketDetail() {
           <h2 className="h6 fw-bold mb-3" style={{ color: 'var(--color-primary)' }}>
             Operational Controls
           </h2>
+          {!showStatusConfirm && conflictBanner}
           <div className="row g-4">
             <div className="col-12 col-md-4">
               <FormField htmlFor="owner-select" label="Ticket Owner" error={ownerError}>
@@ -523,7 +626,18 @@ export function StaffTicketDetail() {
             </div>
 
             <div className="col-12 col-md-4">
-              <FormField htmlFor="status-select" label="Status Workflow" error={statusError}>
+              {ticket.permittedNextStatuses.length === 0 ? (
+                // ui-spec §6.1: terminal statuses show a read-only badge instead of a control.
+                <div className="zg-field">
+                  <div className="zg-label">Status Workflow</div>
+                  <div className="d-flex align-items-center gap-2">
+                    <Badge kind="status" value={ticket.currentStatus} />
+                    <span className="small text-muted">No further changes</span>
+                  </div>
+                </div>
+              ) : (
+              <>
+              <FormField htmlFor="status-select" label="Status Workflow" error={showStatusConfirm ? null : statusError}>
                 <select
                   id="status-select"
                   className="form-select field-editable"
@@ -551,17 +665,56 @@ export function StaffTicketDetail() {
                   Save Status
                 </Button>
               </div>
+              </>
+              )}
             </div>
           </div>
 
           {showStatusConfirm && (
-            <div className="mt-4 p-3 rounded" style={{ background: 'var(--color-pale)' }}>
-              <h3 className="h6 fw-bold mb-2">
-                Confirm transition to {STATUS_LABEL[selectedStatus as TicketStatus]}
-              </h3>
+            <Modal
+              title={`Confirm transition to ${STATUS_LABEL[selectedStatus as TicketStatus]}`}
+              onClose={() => setShowStatusConfirm(false)}
+            >
+              <p className="small text-muted font-monospace mb-3">{ticket.ticketNumber}</p>
+              {conflictBanner}
+              {statusError && (
+                <div className="zg-error-banner mb-3" role="alert">
+                  {statusError}
+                </div>
+              )}
 
-              {needsResolutionSummary && (
-                <FormField htmlFor="resolution-summary" label="Resolution Summary" required>
+              {isResolving && gate && (
+                <div className="mb-3">
+                  {/* ui-spec §6.2: icon and text, never color alone. */}
+                  <ul className="list-unstyled mb-2" aria-label="Resolution checklist">
+                    {gate.conditions.map((c) => (
+                      <li key={c.key} className="d-flex gap-2" style={{ color: c.met ? 'var(--color-success)' : 'var(--color-error)' }}>
+                        <span aria-hidden="true">{c.met ? '✓' : '✗'}</span>
+                        <span>{c.label}</span>
+                        <span className="visually-hidden">{c.met ? '(met)' : '(not met)'}</span>
+                      </li>
+                    ))}
+                    {gate.warnings.map((w) => (
+                      <li key={w} className="d-flex gap-2" style={{ color: 'var(--color-warning)' }}>
+                        <span aria-hidden="true">⚑</span>
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!gate.met && (
+                    <a href="#actions-taken" className="small" onClick={() => setShowStatusConfirm(false)}>
+                      Go to Actions Taken
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {showsResolutionSummary && (
+                <FormField
+                  htmlFor="resolution-summary"
+                  label={isResolving ? 'Resolution Summary' : 'Resolution Summary (optional, keeps the current one when empty)'}
+                  required={isResolving}
+                >
                   <textarea
                     id="resolution-summary"
                     className="form-control field-editable"
@@ -600,7 +753,7 @@ export function StaffTicketDetail() {
                   Confirm
                 </Button>
               </div>
-            </div>
+            </Modal>
           )}
         </div>
       </div>
@@ -662,7 +815,7 @@ export function StaffTicketDetail() {
 
       {/* Actions Taken — Lab 4, between Attachments and Comments/Notes (docs/lab-04/ui-spec.md §5.1) */}
       <ActionsTakenSection
-        key={ticket.id}
+        key={`${ticket.id}-${workflowRefresh}`}
         ticketId={ticket.id}
         ticketCreatedAt={ticket.createdAt}
         mode="staff"
@@ -670,6 +823,9 @@ export function StaffTicketDetail() {
         staffMembers={staffMembers}
         currentUserId={user?.id}
       />
+
+      {/* Status History — Lab 4 ui-spec §6.4 */}
+      <StatusHistory ticketId={ticket.id} refreshKey={workflowRefresh} />
 
       {/* Public Comments — standard Zen Green styling, visible to the Requester */}
       <div className="card border-0 shadow-sm mb-4" data-testid="public-comments-section">
@@ -815,6 +971,12 @@ export function StaffTicketDetail() {
           </form>
         </div>
       </div>
+
+      {toast && (
+        <div className="zg-toast" role="status">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

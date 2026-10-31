@@ -27,6 +27,7 @@ Business rules (BR-xx) and acceptance criteria (AC-xx) refer to [specification.m
 | 409 | `STALE_UPDATE` | `expectedVersion` ≠ current `version` (BR-18). Body adds `currentVersion`. |
 | 409 | `ACTION_LOCKED` | Update to a `COMPLETED` or `CANCELLED` action (BR-07). |
 | 409 | `TICKET_NOT_WRITABLE` | Action create or update while the Ticket is `RESOLVED`, `CLOSED`, or `CANCELLED` (BR-09). |
+| 409 | `TICKET_HAS_OPEN_ACTIONS` | Requester cancel (`PATCH /api/tickets/:id/cancel`) while the Ticket still has `PLANNED` or `IN_PROGRESS` actions (spec §11 D-16). |
 | 409 | `RESOLUTION_GATE_NOT_MET` | Transition to `RESOLVED` with BR-14 conditions unmet. Body adds `unmetConditions`. |
 
 `409 STALE_UPDATE` example:
@@ -249,7 +250,7 @@ The Lab 3 response is unchanged, with these fields added:
 `PATCH /api/staff/tickets/:id/owner`, `PATCH /api/staff/tickets/:id/priority`, `PATCH /api/tickets/:id/resolve-indicator`, and `PATCH /api/tickets/:id/cancel`:
 - They accept an optional `expectedVersion`. A mismatch gives `409 STALE_UPDATE`.
 - On success they increment `version` and include `version` in the `200` body.
-- `PATCH /api/tickets/:id/cancel` (Requester `NEW → CANCELLED`) also writes a history row and applies BR-15 (open actions are auto-cancelled).
+- `PATCH /api/tickets/:id/cancel` (Requester `NEW → CANCELLED`) also writes a history row (note = `cancellationReason`). A Requester never changes Actions Taken (spec §11 D-16), so while the Ticket has an open action the request gets `409 TICKET_HAS_OPEN_ACTIONS` and nothing changes. The Requester detail then omits `CANCELLED` from `permittedNextStatuses`.
 - Every other Lab 3 behavior is unchanged.
 
 ### 2.4. GET /api/tickets/:id/status-history

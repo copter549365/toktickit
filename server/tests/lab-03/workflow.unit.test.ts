@@ -55,7 +55,10 @@ describe('UNIT-02: Status transition state machine (BR-13)', () => {
     expect(
       validateStatusChangeFields('IN_PROGRESS', 'RESOLVED', { resolutionSummary: 'Replaced the battery.' }).isValid,
     ).toBe(true);
-    expect(validateStatusChangeFields('RESOLVED', 'CLOSED', {}).isValid).toBe(false);
+    // Lab 4 api-spec §2.2 (spec D-15): the summary is optional for CLOSED (the stored one is kept),
+    // but a summary that is sent must still be at least 5 characters.
+    expect(validateStatusChangeFields('RESOLVED', 'CLOSED', {}).isValid).toBe(true);
+    expect(validateStatusChangeFields('RESOLVED', 'CLOSED', { resolutionSummary: 'ok' }).isValid).toBe(false);
     expect(validateStatusChangeFields('RESOLVED', 'CLOSED', { resolutionSummary: 'Confirmed fixed.' }).isValid).toBe(
       true,
     );
