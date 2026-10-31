@@ -141,6 +141,7 @@ test.describe.serial('Requester Dashboard (E2E-L4-07, E2E-L4-08)', () => {
       await expect(cardGrid(page).getByRole('link')).toHaveCount(4);
       await expect(page.getByRole('heading', { level: 2, name: 'Needs My Attention' })).toBeVisible();
       await assertNoHorizontalScroll(page);
+      await page.mouse.move(0, 0); // no hover state in the evidence screenshot
       await page.screenshot({ path: lab4Screenshot('requester-dashboard', `${viewportName}-requester-dashboard`), fullPage: true });
     });
   }
@@ -311,6 +312,7 @@ test.describe.serial('IT Staff and Administrator Dashboard (E2E-L4-07, E2E-L4-08
       for (const grid of STAFF_GRIDS) await expect(page.getByRole('list', { name: grid })).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: 'My Open Actions' })).toBeVisible();
       await assertNoHorizontalScroll(page);
+      await page.mouse.move(0, 0); // no hover state in the evidence screenshot
       await page.screenshot({ path: lab4Screenshot('staff-dashboard', `${viewportName}-staff-dashboard`), fullPage: true });
     });
   }
