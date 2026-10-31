@@ -606,6 +606,7 @@ app.get(
         ticketOwner: { select: { name: true } },
         attachments: { orderBy: { uploadedAt: 'asc' } },
         _count: { select: { publicComments: true } },
+        actionsTaken: { where: { status: { in: [...OPEN_ACTION_STATUSES] } }, select: { id: true }, take: 1 },
       },
     });
 
@@ -635,7 +636,7 @@ app.get(
       // Lab 4 api-spec §2.1 (no resolutionGate for the Requester)
       version: ticket.version,
       resolvedAt: ticket.resolvedAt,
-      permittedNextStatuses: permittedNextStatuses(ticket.currentStatus, 'REQUESTER', true),
+      permittedNextStatuses: permittedNextStatuses(ticket.currentStatus, 'REQUESTER', true, ticket.actionsTaken.length > 0),
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       attachments: ticket.attachments.map((a) => ({
@@ -752,7 +753,7 @@ app.patch(
       const rawReason = req.body?.cancellationReason;
       const note = typeof rawReason === 'string' && rawReason.trim() ? rawReason.trim().slice(0, 2000) : null;
 
-      // Lab 4 BR-15/BR-17: status, auto-cancelled actions and the history row change together.
+      // Lab 4 BR-17: the status and its history row change together.
       const outcome = await prisma.$transaction(async (tx) => {
         await lockTicketRow(tx, ticketId);
         const current = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
@@ -762,7 +763,13 @@ app.patch(
         // FR-13.1, BR-13: only cancellable before IT Staff has taken it up.
         if (current.currentStatus !== 'NEW') return { kind: 'notNew' as const };
 
-        await cancelOpenActions(tx, ticketId, authUser.id);
+        // D-16: a Requester never changes Actions Taken (handout §4.3, AC-08). Open staff work
+        // blocks the Requester's cancel instead of being auto-cancelled in their name.
+        const openActions = await tx.actionTaken.count({
+          where: { ticketId, status: { in: [...OPEN_ACTION_STATUSES] } },
+        });
+        if (openActions > 0) return { kind: 'openActions' as const };
+
         const updated = await tx.ticket.update({
           where: { id: ticketId },
           data: { currentStatus: 'CANCELLED', requesterResolvedIndicator: false, version: { increment: 1 } },
@@ -781,6 +788,14 @@ app.patch(
         res.status(400).json({
           error: 'TICKET_ALREADY_IN_PROGRESS',
           message: 'This ticket can no longer be cancelled because it is already being worked on.',
+        });
+        return;
+      }
+      if (outcome.kind === 'openActions') {
+        res.status(409).json({
+          error: 'TICKET_HAS_OPEN_ACTIONS',
+          message:
+            'IT Staff has already started work on this ticket, so it can no longer be cancelled here. Add a comment to ask them to cancel it.',
         });
         return;
       }

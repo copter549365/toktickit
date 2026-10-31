@@ -247,6 +247,106 @@ describe('UI-L4-07: status control and Resolve modal (AC-17, AC-12)', () => {
   });
 });
 
+describe('Requester mutations carry expectedVersion (D-03, D-16; PR #69 review)', () => {
+  function requesterTicket(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeTicket(),
+      requesterId: 1,
+      ticketOwnerName: null,
+      resolutionGate: undefined,
+      currentStatus: 'NEW',
+      permittedNextStatuses: ['CANCELLED'],
+      version: 1,
+      ...overrides,
+    };
+  }
+
+  function renderRequester(handler: (url: string, init?: RequestInit) => Response | undefined) {
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      const custom = handler(url, init);
+      if (custom) return custom;
+      if (url.includes('/api/auth/me')) return jsonResponse({ user: requesterUser });
+      if (url.includes('/status-history')) return jsonResponse({ data: [] });
+      if (url.includes('/actions')) return jsonResponse({ data: [], meta: { totalCount: 0, openCount: 0, completedCount: 0 } });
+      if (url.includes('/comments')) return jsonResponse([]);
+      return jsonResponse([]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <MemoryRouter initialEntries={['/tickets/101']}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/tickets/:id" element={<RequesterTicketDetail />} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+    return fetchMock;
+  }
+
+  const bodyOf = (fetchMock: ReturnType<typeof vi.fn>, part: string) =>
+    JSON.parse(fetchMock.mock.calls.find(([url, init]) => String(url).includes(part) && (init as RequestInit)?.method === 'PATCH')![1].body);
+
+  async function confirmCancel() {
+    fireEvent.click(await screen.findByRole('button', { name: /Cancel Ticket/i }));
+    fireEvent.change(await screen.findByLabelText(/reason/i), { target: { value: 'Raised by mistake.' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirm Cancellation/i }));
+  }
+
+  it('cancel sends the version the Requester is looking at; a 409 reloads and explains', async () => {
+    let ticket = requesterTicket();
+    const fetchMock = renderRequester((url, init) => {
+      if (url.includes('/cancel') && init?.method === 'PATCH') {
+        ticket = requesterTicket({ version: 2, ticketOwnerId: 5, ticketOwnerName: 'Michael Brown' });
+        return jsonResponse({ error: 'STALE_UPDATE', message: 'x', currentVersion: 2 }, 409);
+      }
+      if (url.match(/\/api\/tickets\/\d+$/)) return jsonResponse(ticket);
+      return undefined;
+    });
+    await confirmCancel();
+
+    expect(await screen.findByText(/IT Staff updated this ticket while you were viewing it/)).toBeInTheDocument();
+    expect(bodyOf(fetchMock, '/cancel')).toEqual({ cancellationReason: 'Raised by mistake.', expectedVersion: 1 });
+    expect(await screen.findByDisplayValue('Michael Brown')).toBeInTheDocument(); // reloaded: the owner field
+    expect(screen.queryByText('Cancelled')).not.toBeInTheDocument();
+  });
+
+  it('a 409 TICKET_HAS_OPEN_ACTIONS shows the server message', async () => {
+    renderRequester((url, init) => {
+      if (url.includes('/cancel') && init?.method === 'PATCH') {
+        return jsonResponse(
+          { error: 'TICKET_HAS_OPEN_ACTIONS', message: 'IT Staff has already started work on this ticket.' },
+          409,
+        );
+      }
+      if (url.match(/\/api\/tickets\/\d+$/)) return jsonResponse(requesterTicket());
+      return undefined;
+    });
+    await confirmCancel();
+    expect(await screen.findByText(/IT Staff has already started work on this ticket/)).toBeInTheDocument();
+  });
+
+  it('hides Cancel Ticket when the server does not permit it, even while NEW', async () => {
+    renderRequester((url) => (url.match(/\/api\/tickets\/\d+$/) ? jsonResponse(requesterTicket({ permittedNextStatuses: [] })) : undefined));
+    expect(await screen.findByRole('region', { name: /Status History/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Cancel Ticket/i })).not.toBeInTheDocument();
+  });
+
+  it('"Problem Appears Resolved" sends expectedVersion', async () => {
+    const fetchMock = renderRequester((url, init) => {
+      if (url.includes('/resolve-indicator') && init?.method === 'PATCH') {
+        return jsonResponse({ id: 101, requesterResolvedIndicator: true, version: 5 });
+      }
+      if (url.match(/\/api\/tickets\/\d+$/)) {
+        return jsonResponse(requesterTicket({ currentStatus: 'IN_PROGRESS', permittedNextStatuses: [], version: 4 }));
+      }
+      return undefined;
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Problem Appears Resolved' }));
+    await waitFor(() => expect(bodyOf(fetchMock, '/resolve-indicator')).toEqual({ appearsResolved: true, expectedVersion: 4 }));
+  });
+});
+
 describe('UI-L4-07: Status History (AC-14, ui-spec §6.4)', () => {
   it('renders entries oldest first with actor, note, and a Migrated tag, and can collapse', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: historyRows })));

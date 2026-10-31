@@ -23,13 +23,19 @@ export function isValidStaffStatusTransition(currentStatus: string, targetStatus
   return getPermittedNextStatuses(currentStatus).includes(targetStatus);
 }
 
-/** FR-11: the next statuses offered to *this* caller (api-spec §2.1). */
+/**
+ * FR-11: the next statuses offered to *this* caller (api-spec §2.1). A Requester may cancel only
+ * their own NEW Ticket with no open Actions Taken: they never change actions (D-16).
+ */
 export function permittedNextStatuses(
   currentStatus: string,
   role: 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR',
   isOwningRequester: boolean,
+  hasOpenActions = false,
 ): readonly string[] {
-  if (role === 'REQUESTER') return isOwningRequester && currentStatus === 'NEW' ? ['CANCELLED'] : [];
+  if (role === 'REQUESTER') {
+    return isOwningRequester && currentStatus === 'NEW' && !hasOpenActions ? ['CANCELLED'] : [];
+  }
   return getPermittedNextStatuses(currentStatus);
 }
 

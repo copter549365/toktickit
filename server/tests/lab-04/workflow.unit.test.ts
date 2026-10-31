@@ -54,6 +54,11 @@ describe('UNIT-L4-03: final transition matrix (BR-13)', () => {
       expect(permittedNextStatuses(status, 'REQUESTER', false)).toEqual([]);
     }
   });
+
+  it('withholds the Requester cancel while staff work is open (D-16), but not from staff', () => {
+    expect(permittedNextStatuses('NEW', 'REQUESTER', true, true)).toEqual([]);
+    expect(permittedNextStatuses('NEW', 'IT_STAFF', false, true)).toEqual(STAFF_STATUS_TRANSITIONS.NEW);
+  });
 });
 
 describe('UNIT-L4-04: evaluateResolutionGate (BR-14)', () => {

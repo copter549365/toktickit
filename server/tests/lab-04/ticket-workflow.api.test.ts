@@ -434,12 +434,32 @@ describe('API-L4-18: cancel side effects (AC-16, BR-15)', () => {
     expect(rows).toEqual([expect.objectContaining({ toStatus: 'CANCELLED', note: 'Requester left the university.' })]);
   });
 
-  it('Requester NEW → CANCELLED does the same and writes a history row', async () => {
+  // D-16 (PR #69 review): a Requester never changes Actions Taken (handout §4.3, AC-08), so a
+  // Requester cancel is refused while staff work is still open, instead of auto-cancelling it.
+  it('Requester NEW → CANCELLED with an open action gives 409 TICKET_HAS_OPEN_ACTIONS and changes nothing', async () => {
     const ticket = await createTicket('NEW', { actions: ['PLANNED'] });
+    const res = await patchAs(`/api/tickets/${ticket.id}/cancel`, requester, { cancellationReason: 'Fixed it myself.' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('TICKET_HAS_OPEN_ACTIONS');
+    expect(res.body.message).toBeTruthy();
+    const after = await stored(ticket.id);
+    expect(after.currentStatus).toBe('NEW');
+    expect(after.version).toBe(ticket.version);
+    expect((await actionsOf(ticket.id))[0]).toEqual(
+      expect.objectContaining({ status: 'PLANNED', cancelReason: null, lastUpdatedById: owner.id, version: 1 }),
+    );
+    expect(await historyCount(ticket.id)).toBe(0);
+  });
+
+  it('Requester NEW → CANCELLED with only closed actions succeeds, leaves them untouched, and writes a history row', async () => {
+    const ticket = await createTicket('NEW', { actions: ['COMPLETED', 'CANCELLED'] });
     const res = await patchAs(`/api/tickets/${ticket.id}/cancel`, requester, { cancellationReason: 'Fixed it myself.' });
     expect(res.status).toBe(200);
     expect(res.body.version).toBe(ticket.version + 1);
-    expect((await actionsOf(ticket.id))[0]).toEqual(expect.objectContaining({ status: 'CANCELLED', cancelReason: 'Ticket cancelled', lastUpdatedById: requester.id }));
+    for (const a of await actionsOf(ticket.id)) {
+      expect(a.lastUpdatedById).toBe(owner.id);
+      expect(a.version).toBe(1);
+    }
     const rows = await prisma.ticketStatusChange.findMany({ where: { ticketId: ticket.id } });
     expect(rows).toEqual([
       expect.objectContaining({ fromStatus: 'NEW', toStatus: 'CANCELLED', changedById: requester.id, note: 'Fixed it myself.' }),
@@ -512,6 +532,12 @@ describe('API-L4-19: detail payload (AC-17, FR-11)', () => {
     expect(a.body.version).toBe(fresh.version);
     expect(a.body).toHaveProperty('resolvedAt', null);
     expect(a.body).not.toHaveProperty('resolutionGate');
+  });
+
+  it('Requester detail does not offer CANCELLED on a NEW ticket with open staff work (D-16)', async () => {
+    const worked = await createTicket('NEW', { actions: ['IN_PROGRESS'] });
+    const res = await request(app).get(`/api/tickets/${worked.id}`).set('Cookie', requester.cookie);
+    expect(res.body.permittedNextStatuses).toEqual([]);
   });
 });
 
