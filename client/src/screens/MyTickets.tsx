@@ -1,5 +1,5 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchCategories } from '../api/categories';
 import { fetchMyTickets, ApiError } from '../api/tickets';
@@ -13,16 +13,20 @@ import type { Category } from '../types/category';
 import type {
   Priority,
   SortOrder,
+  StatusGroup,
   TicketListItem,
   TicketListMeta,
   TicketSortField,
   TicketStatus,
 } from '../types/ticket';
+import type { DrillDownState } from '../types/dashboard';
 import { formatDate } from '../utils/formatDate';
 
 const PAGE_SIZE = 10;
 const DEFAULT_SORT_BY: TicketSortField = 'createdAt';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
+/** Status-filter option value for `statusGroup=active` (ui-spec §7). */
+const ACTIVE_GROUP_OPTION = 'group:active';
 
 const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
   { value: 'NEW', label: 'New' },
@@ -35,11 +39,70 @@ const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
-const SORT_COLUMNS: { field: TicketSortField; label: string }[] = [
-  { field: 'ticketNumber', label: 'Ticket No.' },
-  { field: 'createdAt', label: 'Created Date' },
-  { field: 'summary', label: 'Summary' },
+const COLUMNS: { label: string; sortField?: TicketSortField }[] = [
+  { label: 'Ticket No.', sortField: 'ticketNumber' },
+  { label: 'Created Date', sortField: 'createdAt' },
+  { label: 'Summary', sortField: 'summary' },
+  { label: 'Category' },
+  { label: 'Requested Priority' },
+  { label: 'Current Status' },
+  { label: 'Last Updated', sortField: 'updatedAt' },
 ];
+
+const SORT_FIELDS: TicketSortField[] = ['createdAt', 'ticketNumber', 'summary', 'updatedAt'];
+const PRIORITIES: Priority[] = ['LOW', 'MEDIUM', 'HIGH'];
+
+interface Filters {
+  search: string;
+  categoryId: string;
+  requestedPriority: Priority | '';
+  currentStatus: TicketStatus | '';
+  statusGroup: StatusGroup | '';
+  sortBy: TicketSortField;
+  sortOrder: SortOrder;
+  page: number;
+}
+
+/**
+ * FR-16: the URL query string is the shareable form of the filters, so a dashboard drill-down
+ * link reproduces the filtered view. Invalid values are dropped, as the server does, and
+ * `currentStatus` wins over `statusGroup`.
+ */
+function readFilters(params: URLSearchParams): Filters {
+  const status = params.get('currentStatus');
+  const currentStatus = STATUS_OPTIONS.some((s) => s.value === status) ? (status as TicketStatus) : '';
+  const priority = params.get('requestedPriority');
+  const categoryId = params.get('categoryId') ?? '';
+  const sortBy = params.get('sortBy');
+  const sortOrder = params.get('sortOrder');
+  const page = Number(params.get('page'));
+  return {
+    search: (params.get('search') ?? '').trim(),
+    categoryId: /^[1-9]\d*$/.test(categoryId) ? categoryId : '',
+    requestedPriority: PRIORITIES.includes(priority as Priority) ? (priority as Priority) : '',
+    currentStatus,
+    statusGroup: !currentStatus && params.get('statusGroup') === 'active' ? 'active' : '',
+    sortBy: SORT_FIELDS.includes(sortBy as TicketSortField) ? (sortBy as TicketSortField) : DEFAULT_SORT_BY,
+    sortOrder: sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : DEFAULT_SORT_ORDER,
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+  };
+}
+
+/** Writes only non-default values, so an unfiltered list is plain `/tickets`. */
+function filtersToQuery(f: Filters): string {
+  const params = new URLSearchParams();
+  if (f.search) params.set('search', f.search);
+  if (f.categoryId) params.set('categoryId', f.categoryId);
+  if (f.requestedPriority) params.set('requestedPriority', f.requestedPriority);
+  if (f.currentStatus) params.set('currentStatus', f.currentStatus);
+  else if (f.statusGroup) params.set('statusGroup', f.statusGroup);
+  if (f.sortBy !== DEFAULT_SORT_BY || f.sortOrder !== DEFAULT_SORT_ORDER) {
+    params.set('sortBy', f.sortBy);
+    params.set('sortOrder', f.sortOrder);
+  }
+  if (f.page > 1) params.set('page', String(f.page));
+  return params.toString();
+}
 
 function getPaginationItems(currentPage: number, totalPages: number): (number | '...')[] {
   if (totalPages <= 7) {
@@ -57,25 +120,60 @@ function getPaginationItems(currentPage: number, totalPages: number): (number | 
 export function MyTickets() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState<string>('');
-  const [requestedPriority, setRequestedPriority] = useState<Priority | ''>('');
-  const [currentStatus, setCurrentStatus] = useState<TicketStatus | ''>('');
-  const [sortBy, setSortBy] = useState<TicketSortField>(DEFAULT_SORT_BY);
-  const [sortOrder, setSortOrder] = useState<SortOrder>(DEFAULT_SORT_ORDER);
-  const [page, setPage] = useState(1);
+  const [initial] = useState(() => readFilters(searchParams));
+  const [searchInput, setSearchInput] = useState(initial.search);
+  const [search, setSearch] = useState(initial.search);
+  const [categoryId, setCategoryId] = useState<string>(initial.categoryId);
+  const [requestedPriority, setRequestedPriority] = useState<Priority | ''>(initial.requestedPriority);
+  const [currentStatus, setCurrentStatus] = useState<TicketStatus | ''>(initial.currentStatus);
+  const [statusGroup, setStatusGroup] = useState<StatusGroup | ''>(initial.statusGroup);
+  const [sortBy, setSortBy] = useState<TicketSortField>(initial.sortBy);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(initial.sortOrder);
+  const [page, setPage] = useState(initial.page);
   const [retryCount, setRetryCount] = useState(0);
+  const [showDashboardChip, setShowDashboardChip] = useState(
+    Boolean((location.state as DrillDownState | null)?.fromDashboard),
+  );
 
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const hasActiveFilters = Boolean(search || categoryId || requestedPriority || currentStatus);
+  const hasActiveFilters = Boolean(search || categoryId || requestedPriority || currentStatus || statusGroup);
+
+  // The query string we last wrote. A URL that differs from it came from outside (the nav link,
+  // another drill-down, Back), so it is read into the filters instead of being overwritten.
+  const lastQuery = useRef(searchParams.toString());
+
+  useEffect(() => {
+    const next = filtersToQuery({ search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page });
+    if (next === lastQuery.current) return;
+    lastQuery.current = next;
+    setSearchParams(new URLSearchParams(next), { replace: true });
+  }, [search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page, setSearchParams]);
+
+  useEffect(() => {
+    if (searchParams.toString() === lastQuery.current) return;
+    const f = readFilters(searchParams);
+    lastQuery.current = filtersToQuery(f);
+    setSearchInput(f.search);
+    setSearch(f.search);
+    setCategoryId(f.categoryId);
+    setRequestedPriority(f.requestedPriority);
+    setCurrentStatus(f.currentStatus);
+    setStatusGroup(f.statusGroup);
+    setSortBy(f.sortBy);
+    setSortOrder(f.sortOrder);
+    setPage(f.page);
+    setShowDashboardChip(Boolean((location.state as DrillDownState | null)?.fromDashboard));
+    // Only an outside URL change re-reads the filters; location.state travels with it.
+  }, [searchParams]);
 
   // Debounce the free-text search box so typing doesn't fire a request per keystroke.
   // Only when the text actually changed: an unconditional timer also fired on mount and reset
@@ -111,6 +209,7 @@ export function MyTickets() {
         categoryId: categoryId ? Number(categoryId) : undefined,
         requestedPriority: requestedPriority || undefined,
         currentStatus: currentStatus || undefined,
+        statusGroup: statusGroup || undefined,
         sortBy,
         sortOrder,
         page,
@@ -140,7 +239,7 @@ export function MyTickets() {
       ignore = true;
       controller.abort();
     };
-  }, [user, search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, retryCount]);
+  }, [user, search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page, retryCount]);
 
   const handleSort = (field: TicketSortField) => {
     if (sortBy === field) {
@@ -158,9 +257,11 @@ export function MyTickets() {
     setCategoryId('');
     setRequestedPriority('');
     setCurrentStatus('');
+    setStatusGroup('');
     setSortBy(DEFAULT_SORT_BY);
     setSortOrder(DEFAULT_SORT_ORDER);
     setPage(1);
+    setShowDashboardChip(false);
   };
 
   const handleCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -174,7 +275,13 @@ export function MyTickets() {
   };
 
   const handleStatusChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setCurrentStatus(e.target.value as TicketStatus | '');
+    if (e.target.value === ACTIVE_GROUP_OPTION) {
+      setCurrentStatus('');
+      setStatusGroup('active');
+    } else {
+      setCurrentStatus(e.target.value as TicketStatus | '');
+      setStatusGroup('');
+    }
     setPage(1);
   };
 
@@ -207,6 +314,21 @@ export function MyTickets() {
           </Button>
         </div>
       </div>
+
+      {showDashboardChip && (
+        <div className="zg-drilldown-chip mb-3" role="status" aria-label="Filtered from Dashboard">
+          <span>Filtered from Dashboard</span>
+          <button type="button" className="btn btn-link p-0 zg-drilldown-chip__clear" onClick={handleClearFilters}>
+            Clear filters
+          </button>
+          <button
+            type="button"
+            className="btn-close zg-drilldown-chip__dismiss"
+            aria-label="Dismiss"
+            onClick={() => setShowDashboardChip(false)}
+          />
+        </div>
+      )}
 
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body p-3">
@@ -265,10 +387,11 @@ export function MyTickets() {
               <select
                 id="tickets-status-filter"
                 className="form-select field-editable"
-                value={currentStatus}
+                value={currentStatus || (statusGroup ? ACTIVE_GROUP_OPTION : '')}
                 onChange={handleStatusChange}
               >
                 <option value="">All Statuses</option>
+                <option value={ACTIVE_GROUP_OPTION}>Status group: Active</option>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
@@ -310,30 +433,39 @@ export function MyTickets() {
 
       {meta && meta.totalCount > 0 && (
         <>
+          <p className="text-muted small mb-2" aria-live="polite">
+            {meta.totalCount} {meta.totalCount === 1 ? 'ticket' : 'tickets'}
+          </p>
           {/* Desktop / tablet table (ui-spec.md §4.4) */}
           <div className="d-none d-md-block card border-0 shadow-sm">
             <div className="table-responsive">
               <table className="table table-hover align-middle mb-0" data-testid="my-tickets-table">
                 <thead>
                   <tr>
-                    {SORT_COLUMNS.map(({ field, label }) => (
-                      <th key={field} scope="col">
-                        <button
-                          type="button"
-                          className="btn btn-link p-0 fw-semibold text-decoration-none"
-                          style={{ color: 'var(--color-text)' }}
-                          onClick={() => handleSort(field)}
-                          aria-label={`Sort by ${label}`}
+                    {COLUMNS.map(({ label, sortField }) =>
+                      sortField ? (
+                        <th
+                          key={label}
+                          scope="col"
+                          aria-sort={sortBy === sortField ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}
                         >
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 fw-semibold text-decoration-none"
+                            style={{ color: 'var(--color-text)' }}
+                            onClick={() => handleSort(sortField)}
+                            aria-label={`Sort by ${label}`}
+                          >
+                            {label}
+                            {sortIndicator(sortField)}
+                          </button>
+                        </th>
+                      ) : (
+                        <th key={label} scope="col">
                           {label}
-                          {sortIndicator(field)}
-                        </button>
-                      </th>
-                    ))}
-                    <th scope="col">Category</th>
-                    <th scope="col">Requested Priority</th>
-                    <th scope="col">Current Status</th>
-                    <th scope="col">Last Updated</th>
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody>

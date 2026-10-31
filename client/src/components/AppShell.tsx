@@ -37,6 +37,9 @@ export function AppShell() {
               <div className="d-flex flex-column flex-md-row gap-2 me-auto mt-3 mt-md-0 ms-md-3">
                 {user?.role === 'REQUESTER' && (
                   <>
+                    <NavLink to="/dashboard" end className={navLinkClass}>
+                      Dashboard
+                    </NavLink>
                     <NavLink to="/tickets" end className={navLinkClass}>
                       My Tickets
                     </NavLink>

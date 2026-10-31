@@ -27,6 +27,17 @@ import {
   validateStatusChangeFields,
 } from './utils/statusTransition.js';
 import {
+  ACTIVE_TICKET_STATUSES,
+  DASHBOARD_LIST_LIMIT,
+  DASHBOARD_TICKET_SELECT,
+  DISPLAY_TIME_ZONE,
+  RECENT_WINDOW_DAYS,
+  REQUESTER_LIST_VIEW_ALL,
+  buildRequesterCards,
+  recentWindowStart,
+  toDashboardTicketItem,
+} from './utils/dashboard.js';
+import {
   MAX_ATTACHMENT_SIZE_BYTES,
   ensureUploadsDirectory,
   isValidExtension,
@@ -449,7 +460,7 @@ app.get(
   async (req, res) => {
   try {
     const authUser = (req as any).user as AuthenticatedUser;
-    const { search, categoryId, requestedPriority, currentStatus, sortBy, sortOrder, page, pageSize } =
+    const { search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortOrder, page, pageSize } =
       normalizeTicketListQuery(req.query as Record<string, unknown>);
 
     const where: any = { requesterId: authUser.id };
@@ -472,6 +483,8 @@ app.get(
 
     if (currentStatus) {
       where.currentStatus = currentStatus;
+    } else if (statusGroup === 'active') {
+      where.currentStatus = { in: [...ACTIVE_TICKET_STATUSES] };
     }
 
     const [tickets, totalCount] = await Promise.all([
@@ -515,6 +528,69 @@ app.get(
   } catch (error) {
     console.error('Error listing tickets:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+  },
+);
+
+// Requester Dashboard (api-spec.md §3 "GET /api/dashboard/requester"; BR-21, BR-22, BR-25, BR-26).
+// Every value is scoped to requesterId = me and calculated from the live database per request.
+app.get(
+  '/api/dashboard/requester',
+  requireAuth,
+  requirePasswordChangeCompleted,
+  requireRole('REQUESTER'),
+  async (req, res) => {
+  try {
+    const authUser = (req as any).user as AuthenticatedUser;
+    const now = new Date();
+    const mine = { requesterId: authUser.id };
+    const listOrder = [{ updatedAt: 'desc' as const }, { id: 'desc' as const }];
+
+    const [statusGroups, attentionRequired, recentlyUpdated, recentlyResolved] = await Promise.all([
+      prisma.ticket.groupBy({ by: ['currentStatus'], where: mine, _count: { _all: true } }),
+      prisma.ticket.findMany({
+        where: { ...mine, currentStatus: { in: ['WAITING_FOR_REQUESTER', 'RESOLVED'] } },
+        orderBy: listOrder,
+        take: DASHBOARD_LIST_LIMIT,
+        select: DASHBOARD_TICKET_SELECT,
+      }),
+      prisma.ticket.findMany({ where: mine, orderBy: listOrder, take: DASHBOARD_LIST_LIMIT, select: DASHBOARD_TICKET_SELECT }),
+      prisma.ticket.findMany({
+        where: {
+          ...mine,
+          currentStatus: { in: ['RESOLVED', 'CLOSED'] },
+          resolvedAt: { gte: recentWindowStart(now), lte: now },
+        },
+        orderBy: [{ resolvedAt: 'desc' }, { id: 'desc' }],
+        take: DASHBOARD_LIST_LIMIT,
+        select: DASHBOARD_TICKET_SELECT,
+      }),
+    ]);
+
+    const countOf = (statuses: readonly string[]) =>
+      statusGroups
+        .filter((g) => statuses.includes(g.currentStatus))
+        .reduce((sum, g) => sum + g._count._all, 0);
+
+    res.status(200).json({
+      generatedAt: now.toISOString(),
+      displayTimeZone: DISPLAY_TIME_ZONE,
+      recentWindowDays: RECENT_WINDOW_DAYS,
+      cards: buildRequesterCards({
+        openTickets: countOf(ACTIVE_TICKET_STATUSES),
+        waitingForMe: countOf(['WAITING_FOR_REQUESTER']),
+        resolved: countOf(['RESOLVED']),
+        closed: countOf(['CLOSED']),
+      }),
+      lists: {
+        attentionRequired: { items: attentionRequired.map(toDashboardTicketItem), viewAll: REQUESTER_LIST_VIEW_ALL.attentionRequired },
+        recentlyUpdated: { items: recentlyUpdated.map(toDashboardTicketItem), viewAll: REQUESTER_LIST_VIEW_ALL.recentlyUpdated },
+        recentlyResolved: { items: recentlyResolved.map(toDashboardTicketItem), viewAll: REQUESTER_LIST_VIEW_ALL.recentlyResolved },
+      },
+    });
+  } catch (error) {
+    console.error('Error building requester dashboard:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' });
   }
   },
 );

@@ -84,15 +84,19 @@ export interface TicketListItem {
   updatedAt: string;
 }
 
-export type TicketSortField = 'createdAt' | 'ticketNumber' | 'summary';
+export type TicketSortField = 'createdAt' | 'ticketNumber' | 'summary' | 'updatedAt';
 export type SortOrder = 'asc' | 'desc';
 export type PageSize = 10 | 20 | 50;
+/** Lab 4 FR-16: `active` = NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER, REOPENED. */
+export type StatusGroup = 'active';
 
 export interface TicketListParams {
   search?: string;
   categoryId?: number;
   requestedPriority?: Priority;
   currentStatus?: TicketStatus;
+  /** Ignored by the server when `currentStatus` is also sent. */
+  statusGroup?: StatusGroup;
   sortBy?: TicketSortField;
   sortOrder?: SortOrder;
   page?: number;
