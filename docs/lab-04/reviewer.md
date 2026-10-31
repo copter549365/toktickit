@@ -26,6 +26,8 @@
 | **Issue 8** — Final hardening, regression & accessibility ([#63](https://github.com/copter549365/toktickit/issues/63)) | [#72](https://github.com/copter549365/toktickit/pull/72) | `feat/issue-8-final-hardening` | @AlphabetCG | **Approved & Merged** |
 | **Issue 9** — E2E suite, screenshots & release ([#64](https://github.com/copter549365/toktickit/issues/64)) | [#73](https://github.com/copter549365/toktickit/pull/73) | `feat/issue-9-e2e-release` | @AlphabetCG | **Approved & Merged** |
 | Docs follow-up (key prompts, reflection, reviewers) | [#74](https://github.com/copter549365/toktickit/pull/74) | `docs/edit-doc` | @AlphabetCG | **Approved & Merged** |
+| Reviewer record (PR #74 and the release) | [#75](https://github.com/copter549365/toktickit/pull/75) | `docs/reviewer-record` | @AlphabetCG | See PR |
+| **Lab 4 release** | [#76](https://github.com/copter549365/toktickit/pull/76) | `lab4-staging` → `main` | @AlphabetCG | Release PR; final verdict recorded on the PR |
 
 ### 1.1. Key review comments and my responses
 
