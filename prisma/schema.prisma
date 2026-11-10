@@ -152,8 +152,18 @@ model Attachment {
   removedAt        DateTime?
   removalReason    String?
   uploadedAt       DateTime  @default(now())
+  content          AttachmentContent?
 
   @@index([ticketId])
+}
+
+// Lab 5 — the uploaded file's bytes live in the database, not on the container's disk, so they
+// survive a Cloud Run restart and redeploy (R-04). A separate table keeps the bytes out of every
+// ordinary Attachment query; only the download endpoint reads them.
+model AttachmentContent {
+  attachmentId Int        @id
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  data         Bytes
 }
 
 // Lab 3 — visible to requester and IT staff; logged on ticket timeline

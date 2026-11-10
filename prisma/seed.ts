@@ -21,13 +21,17 @@ import { PrismaClient } from '../generated/prisma/client.js';
 import type { ActionTakenStatus, Priority, TicketStatus } from '../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { getNextTicketNumber } from '../server/src/utils/ticketNumber.js';
+import { resolveSeedConfig } from '../server/src/utils/seedConfig.js';
 
 const connectionString = process.env.DATABASE_URL;
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 const SALT_ROUNDS = 12;
-const INITIAL_PASSWORD = 'InitialPassword123!';
+
+// Lab 5: always seeded, even in production — the reference data plus the first administrator
+// (password from ADMIN_PASSWORD). Everything else is demo data behind SEED_DEMO_DATA.
+const FIRST_ADMIN_EMAIL = 'john.smith@toktickit.com';
 
 // ---------------------------------------------------------------------------
 // Static seed data
@@ -187,8 +191,12 @@ type SeedAction = {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, SALT_ROUNDS);
-  console.log('🌱 Starting Lab 3 seed...\n');
+  // Throws before touching the database if production is missing a password (Lab 5, Issue 2).
+  // Passwords are never printed.
+  const config = resolveSeedConfig(process.env);
+  const adminPasswordHash = await bcrypt.hash(config.adminPassword, SALT_ROUNDS);
+  const demoPasswordHash = config.demoPassword ? await bcrypt.hash(config.demoPassword, SALT_ROUNDS) : null;
+  console.log(`🌱 Starting seed (demo data: ${config.seedDemoData ? 'on' : 'off'})...\n`);
 
   // -- 1. Categories ---------------------------------------------------------
   console.log('Seeding categories...');
@@ -211,14 +219,16 @@ async function main() {
   // -- 3. Users ---------------------------------------------------------------
   console.log('\nSeeding users...');
   const userMap = new Map<string, number>(); // email → id
-  for (const u of users) {
+  const usersToSeed = config.seedDemoData ? users : users.filter((u) => u.email === FIRST_ADMIN_EMAIL);
+  for (const u of usersToSeed) {
+    const isFirstAdmin = u.email === FIRST_ADMIN_EMAIL;
     const created = await prisma.user.upsert({
       where:  { email: u.email },
       update: {},                        // do not overwrite if already seeded
       create: {
         name:               u.name,
         email:              u.email,
-        passwordHash,
+        passwordHash:       isFirstAdmin ? adminPasswordHash : demoPasswordHash!,
         role:               u.role,
         isActive:           u.isActive,
         mustChangePassword: true,
@@ -237,6 +247,14 @@ async function main() {
   const alexID      = userMap.get('alex.thompson@toktickit.com')!;
   const lisaID      = userMap.get('lisa.martinez@toktickit.com')!;
   const kevinID     = userMap.get('kevin.patel@toktickit.com')!;
+
+  // Production default (Lab 5): stop after the reference data and the first administrator.
+  // Demo users, tickets, comments and Actions Taken are seeded only with SEED_DEMO_DATA=true.
+  if (!config.seedDemoData) {
+    console.log('\nDemo data skipped (SEED_DEMO_DATA is off).');
+    console.log('\n✅ Seed completed successfully.');
+    return;
+  }
 
   // -- 4. Tickets (requires Category & RelatedSystem ids) -------------------
   console.log('\nSeeding tickets...');

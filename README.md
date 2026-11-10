@@ -48,8 +48,11 @@ npx prisma db seed                # idempotent: running it twice creates no dupl
 
 ## Accounts and demo
 
-Every seeded account starts with the password `InitialPassword123!` and must change it at first
-sign-in. After sign-in, every role lands on its **Dashboard**.
+Locally, every seeded account starts with the password `InitialPassword123!` and must change it at
+first sign-in. After sign-in, every role lands on its **Dashboard**. This local default never
+applies in production: there the seed requires `ADMIN_PASSWORD`, skips demo data unless
+`SEED_DEMO_DATA=true`, and takes demo passwords from `DEMO_USER_PASSWORD`
+(see `docs/labs/lab-05/deployment.md`).
 
 | Role | Account | What it shows |
 |---|---|---|
