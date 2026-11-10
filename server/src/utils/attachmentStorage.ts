@@ -1,5 +1,4 @@
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -13,13 +12,10 @@ export const ALLOWED_MIME_TYPES = [
 
 export const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 
+// Legacy (Lab 2–4) location of uploaded files. Since Lab 5 the bytes live in the database
+// (AttachmentContent); this folder is only read as a fallback for attachments uploaded locally
+// before that migration, and nothing writes to it any more.
 export const UPLOADS_DIRECTORY = path.resolve(process.cwd(), 'uploads');
-
-export function ensureUploadsDirectory(): void {
-  if (!fs.existsSync(UPLOADS_DIRECTORY)) {
-    fs.mkdirSync(UPLOADS_DIRECTORY, { recursive: true });
-  }
-}
 
 export function isValidExtension(filename: string): boolean {
   const ext = path.extname(filename).toLowerCase();

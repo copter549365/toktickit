@@ -4,6 +4,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import fs from 'fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { prisma } from './db.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { getNextTicketNumber } from './utils/ticketNumber.js';
@@ -46,7 +48,6 @@ import {
 } from './utils/dashboard.js';
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
-  ensureUploadsDirectory,
   isValidExtension,
   isValidMimeType,
   generateStoredFileName,
@@ -344,6 +345,17 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     service: 'TokTickIT API',
   });
+});
+
+// Readiness Endpoint (Lab 5, Student Guide Ep 2 §2.2 point 6): answers only when the database
+// is reachable. The post-deploy smoke test reads `db`, so a 200 alone never proves the DB works.
+app.get('/api/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: 'ready', db: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'not_ready', db: 'disconnected' });
+  }
 });
 
 // Category List Endpoint
@@ -1671,13 +1683,10 @@ app.post(
         return;
       }
 
-      // Save file to disk
-      ensureUploadsDirectory();
+      // Persist the metadata and the bytes together in the database (Lab 5, R-04): nothing is
+      // written to the container disk, so the file survives a Cloud Run restart and redeploy.
+      // storedFileName stays a unique opaque id for compatibility with the Lab 2 schema.
       const storedFileName = generateStoredFileName(req.file.originalname);
-      const filePath = getAttachmentFilePath(storedFileName);
-      fs.writeFileSync(filePath, req.file.buffer);
-
-      // Persist attachment in database
       const [attachment] = await prisma.$transaction([
         prisma.attachment.create({
           data: {
@@ -1687,6 +1696,7 @@ app.post(
             mimeType: req.file.mimetype,
             fileSizeBytes: req.file.size,
             isRemoved: false,
+            content: { create: { data: new Uint8Array(req.file.buffer) } },
           },
         }),
         touchTicketActivity(ticket.id),
@@ -1782,13 +1792,24 @@ app.get(
         return;
       }
 
+      const safeFileName = attachment.originalFileName.replace(/["\r\n]/g, '');
+
+      // Lab 5: bytes are read from the database. Attachments uploaded before the Lab 5 migration
+      // only exist on a developer's local disk, so fall back to the legacy uploads/ folder for them.
+      const content = await prisma.attachmentContent.findUnique({ where: { attachmentId: attachment.id } });
+      if (content) {
+        res.setHeader('Content-Type', attachment.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+        res.status(200).send(Buffer.from(content.data));
+        return;
+      }
+
       const filePath = getAttachmentFilePath(attachment.storedFileName);
       if (!fs.existsSync(filePath)) {
         res.status(404).json({ error: 'ATTACHMENT_NOT_FOUND' });
         return;
       }
 
-      const safeFileName = attachment.originalFileName.replace(/["\r\n]/g, '');
       res.setHeader('Content-Type', attachment.mimeType);
       res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
 
@@ -2642,5 +2663,32 @@ app.post(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// Built SPA (Lab 5, Issue 2): on Cloud Run the API and the built React app ship in one image and
+// share one origin, so the session cookie and same-origin API calls need no CORS. Registered
+// after every API route; unknown /api paths keep their 404 instead of returning index.html.
+// ---------------------------------------------------------------------------
+
+export function registerClientApp(target: express.Express, clientDistDir: string): void {
+  const indexHtml = path.join(clientDistDir, 'index.html');
+  if (!fs.existsSync(indexHtml)) return;
+
+  target.use(express.static(clientDistDir, { index: false }));
+  target.use((req: Request, res: Response, next: NextFunction) => {
+    if ((req.method !== 'GET' && req.method !== 'HEAD') || req.path === '/api' || req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+    res.sendFile(indexHtml);
+  });
+}
+
+// Only production serves the build; local development keeps using the Vite dev server.
+// CLIENT_DIST_DIR overrides the default repo layout (<repo>/client/dist).
+if (process.env.NODE_ENV === 'production') {
+  const defaultClientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
+  registerClientApp(app, process.env.CLIENT_DIST_DIR || defaultClientDist);
+}
 
 export default app;
